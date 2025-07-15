@@ -1,0 +1,107 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: var(--font-poppins), Arial, Helvetica, sans-serif;
+}
+
+@layer base {
+  :root {
+    --background: 210 15% 10%; /* Dark Slate Blue-Gray */
+    --foreground: 210 15% 90%; /* Light Gray */
+
+    --card: 210 15% 15%; /* Slightly lighter than background for glass effect */
+    --card-foreground: 210 15% 90%;
+
+    --popover: 210 15% 12%;
+    --popover-foreground: 210 15% 90%;
+
+    --primary: 279 100% 35%; /* Deep Indigo */
+    --primary-foreground: 279 100% 95%; /* Light variant of Deep Indigo or white */
+
+    --secondary: 210 10% 30%; /* Muted secondary */
+    --secondary-foreground: 210 10% 80%;
+
+    --muted: 210 10% 25%;
+    --muted-foreground: 210 10% 60%;
+
+    --accent: 274 100% 55%; /* Electric Purple for "neon" accents */
+    --accent-foreground: 274 100% 95%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 10% 20%; /* Subtle border for glass cards */
+    --input: 210 10% 18%;
+    --ring: 274 100% 65%; /* Bright Electric Purple for focus rings */
+
+    --radius: 0.5rem;
+
+    /* Chart colors (can be adjusted for dark theme if needed) */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+
+    /* Sidebar specific colors */
+    --sidebar-background: 210 20% 8%;
+    --sidebar-foreground: 210 15% 85%;
+    --sidebar-primary: 279 100% 40%;
+    --sidebar-primary-foreground: 279 100% 95%;
+    --sidebar-accent: 274 100% 60%;
+    --sidebar-accent-foreground: 274 100% 95%;
+    --sidebar-border: 210 10% 15%;
+    --sidebar-ring: 274 100% 70%;
+  }
+
+  /* Removed .dark class scoping, dark theme is default */
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: contain; /* Prevents pull-to-refresh of the whole browser window */
+  }
+}
+
+/* Custom glassmorphism utility */
+.glass-card {
+  @apply bg-card/60 backdrop-blur-md border border-border/30 shadow-lg;
+}
+
+.neon-accent-text {
+  @apply text-accent shadow-[0_0_5px_hsl(var(--accent)),_0_0_10px_hsl(var(--accent))];
+}
+
+.neon-accent-border {
+  @apply border-accent shadow-[0_0_5px_hsl(var(--accent)),_0_0_10px_hsl(var(--accent))];
+}
+
+.neon-accent-bg {
+   @apply bg-accent shadow-[0_0_8px_hsl(var(--accent)),_0_0_15px_hsl(var(--accent)),_0_0_20px_hsl(var(--accent))];
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--background) / 0.5);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent));
+}

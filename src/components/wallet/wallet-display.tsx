@@ -1,0 +1,340 @@
+
+"use client";
+
+import { useState, useCallback, useEffect } from 'react';
+import type { User, WalletTransaction, RedeemCodeEntry, GlobalSettings } from '@/types';
+import GlassCard from '@/components/core/glass-card';
+import { Button } from '@/components/ui/button';
+import { PlusCircle, Download, ArrowRightLeft, Award as AwardIcon, Gift as GiftIcon, Users as UsersIcon, Banknote, CreditCard, Ticket, Loader2, Zap, Smartphone, Info } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import RupeeIcon from '@/components/core/rupee-icon';
+import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
+import { database } from '@/lib/firebase/config'; 
+import { ref, get, update, push, runTransaction } from 'firebase/database';
+import type { User as FirebaseUser } from 'firebase/auth'; 
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogTitle,
+  DialogDescription,
+  DialogHeader,
+} from "@/components/ui/dialog";
+import WithdrawDialog from './withdraw-dialog';
+import MobileLoadDialog from './mobile-load-dialog';
+import { useAd } from '@/context/AdContext';
+import { Separator } from '../ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import Image from 'next/image';
+import { getDisplayableBannerUrl } from '@/lib/image-helper';
+import { Coins } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
+
+interface WalletDisplayProps {
+  user: User;
+  transactions: WalletTransaction[];
+  firebaseUser: FirebaseUser | null;
+  settings: Partial<GlobalSettings>;
+  onRefresh: () => void;
+}
+
+const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, firebaseUser, settings, onRefresh }) => {
+  const { toast } = useToast();
+  const { triggerButtonAd } = useAd();
+  const [redeemCodeInput, setRedeemCodeInput] = useState('');
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
+  const [isMobileLoadDialogOpen, setIsMobileLoadDialogOpen] = useState(false);
+  
+  // New state for conversion logic
+  const [isConversionDay, setIsConversionDay] = useState(false);
+  const [isConvertingPoints, setIsConvertingPoints] = useState(false);
+
+  // New effect to check the date
+  useEffect(() => {
+    const today = new Date();
+    const dayOfMonth = today.getDate();
+    if (dayOfMonth === 4 || dayOfMonth === 17) {
+        setIsConversionDay(true);
+    }
+  }, []);
+
+  const getTransactionTypeIcon = (type: WalletTransaction['type']) => {
+    const iconClass = "w-6 h-6 shrink-0";
+    switch (type) {
+      case 'topup': return <PlusCircle className={`text-green-500 ${iconClass}`} />;
+      case 'withdrawal': return <Download className={`text-red-500 ${iconClass}`} />;
+      case 'entry_fee': return <Banknote className={`text-yellow-600 ${iconClass}`} />;
+      case 'prize': return <AwardIcon className={`text-blue-500 ${iconClass}`} />;
+      case 'redeem_code': return <Ticket className={`text-purple-500 ${iconClass}`} />;
+      case 'referral_bonus_received': return <GiftIcon className={`text-pink-500 ${iconClass}`} />;
+      case 'referral_commission_earned': return <UsersIcon className={`text-indigo-500 ${iconClass}`} />;
+      case 'refund': return <AwardIcon className={`text-cyan-500 ${iconClass}`} />;
+      case 'shop_purchase_hold': return <CreditCard className={`text-gray-500 ${iconClass}`} />;
+      case 'shop_purchase_complete': return <CreditCard className={`text-green-500 ${iconClass}`} />;
+      case 'watch_earn_conversion': return <Zap className={`text-yellow-400 ${iconClass}`} />;
+      default: return <ArrowRightLeft className={`text-muted-foreground ${iconClass}`} />;
+    }
+  };
+
+  const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  const handleRedeemCode = async () => {
+    if (!redeemCodeInput.trim() || !firebaseUser || !database) {
+      toast({ title: "Input Error", description: "Please enter a redeem code and ensure you're logged in.", variant: "destructive" });
+      return;
+    }
+
+    setIsRedeeming(true);
+    const codeString = redeemCodeInput.trim().toUpperCase();
+
+    try {
+      const codeRef = ref(database, `redeemCodes/${codeString}`);
+      const codeSnapshot = await get(codeRef);
+
+      if (!codeSnapshot.exists() || codeSnapshot.val().timesUsed >= codeSnapshot.val().maxUses || (codeSnapshot.val().claimedBy && codeSnapshot.val().claimedBy[firebaseUser.uid])) {
+        toast({ title: "Invalid or Used Code", description: "This code is invalid, already used, or has reached its limit.", variant: "destructive" });
+        setIsRedeeming(false);
+        return;
+      }
+      
+      const codeData = codeSnapshot.val() as RedeemCodeEntry;
+      const userRef = ref(database, `users/${firebaseUser.uid}`);
+      
+      await runTransaction(userRef, (currentUserData: User | null) => {
+        if (currentUserData) {
+          currentUserData.wallet = (currentUserData.wallet || 0) + codeData.amount;
+        }
+        return currentUserData;
+      });
+
+      const updates: Record<string, any> = {
+        [`redeemCodes/${codeString}/timesUsed`]: (codeData.timesUsed || 0) + 1,
+        [`redeemCodes/${codeString}/claimedBy/${firebaseUser.uid}`]: new Date().toISOString(),
+      };
+      if (((codeData.timesUsed || 0) + 1) >= codeData.maxUses) {
+        updates[`redeemCodes/${codeString}/isUsed`] = true; 
+      }
+      await update(ref(database), updates);
+
+      const newTransaction: Omit<WalletTransaction, 'id'> = {
+        type: 'redeem_code', amount: codeData.amount, status: 'completed',
+        date: new Date().toISOString(), description: `Redeemed code: ${codeString}`,
+      };
+      await push(ref(database, `walletTransactions/${firebaseUser.uid}`), newTransaction);
+
+      toast({ title: "Code Redeemed!", description: `Rs ${codeData.amount} added to your wallet.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
+      setRedeemCodeInput('');
+      onRefresh();
+    } catch (error) {
+      toast({ title: "Redemption Error", description: `Could not redeem code: ${error instanceof Error ? error.message : "Unknown error"}`, variant: "destructive" });
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+  
+  const pointsToCurrencyRate = settings.pointsToCurrencyRate || 0;
+  const currencyPerRate = settings.currencyPerRate || 0;
+  const userPoints = user.watchAndEarnPoints || 0;
+
+  const canConvert = isConversionDay && userPoints >= pointsToCurrencyRate;
+
+  const handleConvertPoints = async () => {
+    if (!canConvert || !firebaseUser) return;
+    if (isConvertingPoints) return;
+    if (pointsToCurrencyRate <= 0) {
+      toast({ title: "Conversion Error", description: "Conversion rate not set correctly by admin.", variant: "destructive" });
+      return;
+    }
+
+    setIsConvertingPoints(true);
+    const numberOfConversions = Math.floor(userPoints / pointsToCurrencyRate);
+    const pointsToDeduct = numberOfConversions * pointsToCurrencyRate;
+    const amountToCredit = numberOfConversions * currencyPerRate;
+
+    try {
+      if (!database) throw new Error("Firebase not initialized.");
+
+      const userRef = ref(database, `users/${firebaseUser.uid}`);
+      await runTransaction(userRef, (currentUserData) => {
+        if (currentUserData) {
+          currentUserData.wallet = (currentUserData.wallet || 0) + amountToCredit;
+          currentUserData.watchAndEarnPoints = (currentUserData.watchAndEarnPoints || 0) - pointsToDeduct;
+        }
+        return currentUserData;
+      });
+      
+      const newTx: Omit<WalletTransaction, 'id'> = {
+        type: 'watch_earn_conversion', amount: amountToCredit, status: 'completed',
+        date: new Date().toISOString(), description: `Converted ${pointsToDeduct} points`,
+      };
+      await push(ref(database, `walletTransactions/${firebaseUser.uid}`), newTx);
+
+      toast({ title: "Conversion Successful!", description: `You converted ${pointsToDeduct} points to Rs ${amountToCredit.toFixed(2)}.`, className: "bg-green-500/20" });
+      onRefresh();
+    } catch (error: any) {
+      console.error("Error converting points:", error);
+      toast({ title: "Conversion Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsConvertingPoints(false);
+    }
+  };
+
+  const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
+
+  return (
+    <div className="space-y-8">
+      <GlassCard className="p-6 md:p-8 shadow-xl border-2 border-accent/30 hover:shadow-accent/50 transition-shadow duration-300">
+        <div className="flex flex-col items-center text-center mb-6">
+          <p className="text-base sm:text-lg text-muted-foreground mb-1">Your Arena Balance</p>
+          <div className="text-5xl sm:text-6xl md:text-7xl font-bold text-accent flex items-center neon-accent-text">
+            <RupeeIcon className="mr-2 h-10 sm:h-12 w-auto" /> {user.wallet.toFixed(2)}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" asChild disabled={!settings.contactWhatsapp}>
+            <a href={settings.contactWhatsapp ? `${settings.contactWhatsapp}?text=Assalamualaikum%20mein%20aap%20se%20raabta%20karna%20chahta%20hoon` : '#'} target="_blank" rel="noopener noreferrer">
+              <PlusCircle className="mr-2 h-5 w-5" /> Recharge Your Digital Vault!
+              {!settings.contactWhatsapp && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
+            </a>
+          </Button>
+
+          {isMobileLoadEnabled && (
+            <Dialog open={isMobileLoadDialogOpen} onOpenChange={setIsMobileLoadDialogOpen}>
+              <DialogTrigger asChild>
+                  <Button variant="outline" className="border-accent text-accent hover:bg-accent/10 text-base py-2 sm:py-3 shadow-lg hover:shadow-accent/30 transition-shadow col-span-1">
+                      <Smartphone className="mr-2 h-5 w-5" /> Mobile Load
+                  </Button>
+              </DialogTrigger>
+              <DialogContent className="glass-card sm:max-w-md">
+                  <MobileLoadDialog
+                      firebaseUser={firebaseUser}
+                      userProfile={user}
+                      onOpenChange={setIsMobileLoadDialogOpen}
+                      onSuccess={onRefresh}
+                  />
+              </DialogContent>
+            </Dialog>
+          )}
+
+          <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="border-accent text-accent hover:bg-accent/10 text-base py-2 sm:py-3 shadow-lg hover:shadow-accent/30 transition-shadow col-span-1" onClick={() => triggerButtonAd(() => setIsWithdrawDialogOpen(true), 'wallet_withdraw')}>
+                <Download className="mr-2 h-5 w-5" /> Withdraw
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="glass-card sm:max-w-md">
+              <WithdrawDialog 
+                firebaseUser={firebaseUser} 
+                userProfile={user} 
+                onOpenChange={setIsWithdrawDialogOpen}
+                onSuccess={onRefresh}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="p-6 md:p-8 shadow-xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            <div className="space-y-4 text-center md:text-left">
+                 <h3 className="text-2xl font-semibold text-foreground flex items-center justify-center sm:justify-start">
+                    <GiftIcon className="mr-3 h-7 w-7 text-accent" /> Redeem Gift Code
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                    Enter your gift code below to instantly add funds to your wallet.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 items-center">
+                    <div className="relative flex-grow w-full">
+                        <Ticket className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <Input id="redeemCodeInput" placeholder="Enter code" className="pl-10 pr-4 py-3 bg-input/50" value={redeemCodeInput} onChange={(e) => setRedeemCodeInput(e.target.value.toUpperCase())} disabled={isRedeeming} />
+                    </div>
+                    <Button className="neon-accent-bg w-full sm:w-auto" onClick={handleRedeemCode} disabled={isRedeeming || !redeemCodeInput}>
+                        {isRedeeming ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Redeem'}
+                    </Button>
+                </div>
+            </div>
+            
+            <Separator orientation="vertical" className="hidden md:block h-auto" />
+            
+            <div className="space-y-4 text-center md:text-left">
+                <h3 className="text-2xl font-semibold text-foreground flex items-center justify-center sm:justify-start">
+                    <Zap className="mr-3 h-7 w-7 text-yellow-400" /> Click &amp; Earn Points
+                </h3>
+                <div className="text-5xl font-bold text-yellow-400">{user.watchAndEarnPoints || 0}</div>
+                <p className="text-sm text-muted-foreground">
+                    Current Rate: {pointsToCurrencyRate || 'N/A'} points = <RupeeIcon className="inline h-3.5" /> {currencyPerRate || 'N/A'}
+                </p>
+                
+                {canConvert ? (
+                    <Button onClick={handleConvertPoints} disabled={isConvertingPoints} className="w-full">
+                        {isConvertingPoints ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
+                        Convert to Wallet
+                    </Button>
+                ) : (
+                    <Alert variant="default" className="bg-primary/10 border-primary/30 text-left">
+                        <Info className="h-4 w-4 !text-primary" />
+                        <AlertTitle className="!text-primary text-sm">Conversion Info</AlertTitle>
+                        <AlertDescription className="!text-primary/80 text-xs">
+                           Conversion is available on the 4th and 17th of each month.
+                           You need at least {pointsToCurrencyRate || 'N/A'} points to convert.
+                        </AlertDescription>
+                    </Alert>
+                )}
+            </div>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="p-0 shadow-xl">
+        <div className="p-6 border-b border-border/30 flex justify-between items-center">
+          <div>
+            <h3 className="text-2xl font-semibold text-foreground">Transaction History</h3>
+            <p className="text-sm text-muted-foreground mt-1">View all your recent wallet activities.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={onRefresh} className="text-accent border-accent hover:bg-accent/10">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin hidden" id="refresh-spinner" /> Refresh
+          </Button>
+        </div>
+        {sortedTransactions.length > 0 ? (
+          <ScrollArea className="h-[600px] w-full">
+            <ul className="divide-y divide-border/30">
+              {sortedTransactions.map((tx) => (
+                <li key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/10 transition-colors">
+                  <div className="flex items-center gap-4">
+                    {getTransactionTypeIcon(tx.type)}
+                    <div>
+                      <p className="font-medium text-sm text-foreground">{tx.description || tx.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(tx.date).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-semibold text-md ${tx.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {tx.amount >= 0 ? '+' : '-'}<RupeeIcon className="inline h-3.5 w-auto mr-0.5" />{Math.abs(tx.amount).toFixed(2)}
+                    </p>
+                    <Badge variant={tx.status === 'completed' ? 'default' : tx.status === 'pending' || tx.status === 'on_hold' ? 'secondary' : 'destructive'} className="mt-1 text-xs capitalize">
+                      {tx.status?.replace(/_/g, ' ')}
+                    </Badge>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
+        ) : (
+          <div className="p-6 text-center text-muted-foreground py-16"> 
+            <CreditCard className="mx-auto h-16 w-16 text-muted-foreground/40 mb-6" />
+            <p className="text-xl font-semibold text-foreground mb-1">No Transactions Yet</p>
+            <p className="text-sm">Your wallet activity will appear here once you make any transactions.</p>
+          </div>
+        )}
+      </GlassCard>
+    </div>
+  );
+};
+
+export default WalletDisplay;
+
+    

@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rule for shopItems collection
+    // Allows anyone to list/query the collection if they are trying to read active items
+    // And allows anyone to read individual active items.
+    match /shopItems/{itemId} {
+      allow read: if resource.data.active == true;
+      // Admins can write (create, update, delete)
+      allow write: if request.auth != null && 
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /shopItems {
+      // Allow clients to list/query shopItems if the query is for active items
+      allow list: if request.query.limit <= 100 && // Optional: limit query size
+                     (request.query.offset == null || request.query.offset == 0) && // Optional: restrict complex queries
+                     (request.query.orderBy == null || request.query.orderBy.field == "createdAt") && // Example: allow ordering by creation date
+                     true; // The actual filtering for 'active == true' is done client-side or implicitly by the per-document read rule
+                           // For more restrictive queries, you'd need to check request.query here, e.g. request.query.where[0][1] == 'active'
+                           // However, for a simple "where active == true" query, the per-document `allow read` rule is often sufficient
+                           // as long as the `list` operation itself is permitted broadly enough.
+                           // A simple `allow list: if true;` is often too permissive for production but helps in debugging.
+                           // For your `where('active', '==', true)` query, this `list` rule needs to be met.
+    }
+
+
+    // Rules for 'users' collection (example, adjust as needed)
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow admins to read any user profile
+      allow read: if request.auth != null && 
+                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Rules for 'coupons' collection (example, adjust as needed)
+    match /coupons/{couponId} {
+      allow read: if request.auth != null && (resource.data.isActive == true || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "Arena Ace",
+  "short_name": "Arena Ace",
+  "description": "Join Arena Ace for eSports tournaments, manage your wallet, and climb the leaderboard.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#2F4F4F",
+  "theme_color": "#4B0082",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

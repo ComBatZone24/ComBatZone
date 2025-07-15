@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 220" style="background-color: white; border-radius: 10px; border: 1px solid black;">
+  <text x="10" y="30" font-family="Arial, sans-serif" font-size="30" fill="black">8</text>
+  <text x="10" y="55" font-family="Arial, sans-serif" font-size="20" fill="black">♣</text>
+  <text x="30" y="45" font-family="Arial, sans-serif" font-size="30" fill="black">♣</text>
+  <text x="110" y="45" font-family="Arial, sans-serif" font-size="30" fill="black">♣</text>
+  <text x="70" y="75" font-family="Arial, sans-serif" font-size="30" fill="black">♣</text>
+  <text x="30" y="110" font-family="Arial, sans-serif" font-size="30" fill="black">♣</text>
+  <text x="110" y="110" font-family="Arial, sans-serif" font-size="30" fill="black">♣</text>
+  <text x="70" y="145" font-family="Arial, sans-serif" font-size="30" fill="black" transform="rotate(180 70 145)">♣</text>
+  <text x="30" y="175" font-family="Arial, sans-serif" font-size="30" fill="black" transform="rotate(180 30 175)">♣</text>
+  <text x="110" y="175" font-family="Arial, sans-serif" font-size="30" fill="black" transform="rotate(180 110 175)">♣</text>
+  <text x="150" y="190" font-family="Arial, sans-serif" font-size="30" fill="black" transform="rotate(180 150 190)">8</text>
+  <text x="150" y="165" font-family="Arial, sans-serif" font-size="20" fill="black" transform="rotate(180 150 165)">♣</text>
+</svg>
