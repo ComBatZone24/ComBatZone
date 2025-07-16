@@ -11,7 +11,7 @@ import RupeeIcon from '@/components/core/rupee-icon';
 import { cn } from '@/lib/utils';
 import { database } from '@/lib/firebase/config';
 import { ref, update, push, serverTimestamp } from 'firebase/database';
-import { generateRewardMessage } from '@/ai/flows/generate-reward-message-flow';
+import { generateEventNotification } from '@/ai/flows/generate-event-notification-flow';
 
 
 interface DailyRewardDialogProps {
@@ -82,10 +82,10 @@ export default function DailyRewardDialog({ user, settings, isOpen, onClose }: D
             await push(walletTxRef, transaction);
             
             // Generate and show AI message
-            const aiMessage = await generateRewardMessage({ day: newStreakToSave, amount: rewardForToday });
+            const aiMessage = await generateEventNotification({ eventType: 'dailyReward', day: newStreakToSave, amount: rewardForToday });
             toast({
-                title: `Day ${newStreakToSave} Reward Claimed!`,
-                description: aiMessage.message,
+                title: aiMessage.heading,
+                description: aiMessage.content,
                 className: "bg-green-500/20 text-green-300 border-green-500/30",
             });
             onClose();

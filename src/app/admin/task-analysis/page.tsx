@@ -3,14 +3,13 @@
 
 import { useState, useEffect } from 'react';
 import { database } from '@/lib/firebase/config';
-import { ref, get } from 'firebase/database';
+import { ref, onValue, off } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
-import type { User, WalletTransaction } from '@/types';
+import type { WalletTransaction } from '@/types';
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Loader2, BarChart3, Coins, MousePointerClick, Calendar, Star, TrendingUp } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import RupeeIcon from '@/components/core/rupee-icon';
 
 interface TaskStats {
   totalPointsEarned: number;
@@ -34,21 +33,21 @@ const StatDisplay: React.FC<{ icon: React.ElementType, title: string, value: str
 export default function TaskAnalysisPage() {
   const [stats, setStats] = useState<TaskStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchAndAnalyzeData = async () => {
-      setIsLoading(true);
-      if (!database) {
-        toast({ title: "Database Error", description: "Database service not available.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
+    if (!database) {
+      setError("Database service is not available.");
+      setIsLoading(false);
+      return;
+    }
 
-      try {
-        const transactionsSnapshot = await get(ref(database, 'walletTransactions'));
-        const clicksSnapshot = await get(ref(database, 'adminData/taskClicks'));
+    const transactionsRef = ref(database, 'walletTransactions');
+    const clicksRef = ref(database, 'adminData/taskClicks');
 
+    const handleData = () => {
+      onValue(transactionsRef, (transactionsSnapshot) => {
         let totalPoints = 0;
         let dailyPoints = 0;
         let weeklyPoints = 0;
@@ -83,35 +82,52 @@ export default function TaskAnalysisPage() {
           }
         }
         
-        const clickData = clicksSnapshot.exists() ? clicksSnapshot.val() : {};
-        const totalClicks = Object.values(clickData).reduce((sum: number, count: any) => sum + (Number(count) || 0), 0);
+        onValue(clicksRef, (clicksSnapshot) => {
+          const clickData = clicksSnapshot.exists() ? clicksSnapshot.val() : {};
+          const totalClicks = Object.values(clickData).reduce((sum: number, count: any) => sum + (Number(count) || 0), 0);
 
-        setStats({
-          totalPointsEarned: totalPoints,
-          dailyPoints,
-          weeklyPoints,
-          biWeeklyPoints: biWeeklyPoints,
-          monthlyPoints,
-          totalClicks,
-          clickBreakdown: clickData,
+          setStats({
+            totalPointsEarned: totalPoints,
+            dailyPoints,
+            weeklyPoints,
+            biWeeklyPoints,
+            monthlyPoints,
+            totalClicks,
+            clickBreakdown: clickData,
+          });
+          setIsLoading(false);
+          setError(null);
+        }, (clickError) => {
+          console.error("Error fetching clicks data:", clickError);
+          setError("Could not load click engagement data.");
+          setIsLoading(false);
         });
 
-      } catch (err: any) {
-        toast({ title: "Analysis Failed", description: "Could not process task data.", variant: "destructive" });
-      } finally {
+      }, (txError) => {
+        console.error("Error fetching transactions data:", txError);
+        setError("Could not load points conversion data.");
         setIsLoading(false);
-      }
+      });
     };
 
-    fetchAndAnalyzeData();
+    handleData();
+
+    return () => {
+      off(transactionsRef);
+      off(clicksRef);
+    };
   }, [toast]);
 
   if (isLoading) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="h-10 w-10 animate-spin text-accent" /><p className="ml-3">Analyzing task data...</p></div>;
   }
   
+  if (error) {
+    return <GlassCard className="p-10 text-center text-destructive"><p>{error}</p></GlassCard>;
+  }
+
   if (!stats) {
-     return <GlassCard className="p-10 text-center"><p className="text-muted-foreground">No data available to display.</p></GlassCard>;
+    return <GlassCard className="p-10 text-center"><p className="text-muted-foreground">No data available to display.</p></GlassCard>;
   }
 
   return (
@@ -146,4 +162,3 @@ export default function TaskAnalysisPage() {
     </div>
   );
 }
-

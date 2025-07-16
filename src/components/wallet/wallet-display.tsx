@@ -32,6 +32,7 @@ import Image from 'next/image';
 import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Coins } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { format } from 'date-fns';
 
 
 interface WalletDisplayProps {
@@ -185,7 +186,7 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   };
 
   const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
-  const rechargeMessage = `Hi, I need to recharge my Arena Ace wallet. My User ID is: ${user.id || 'N/A'}`;
+  const rechargeMessage = `Aur apna Arena Ace wallet. My User ID is: ${user.id || 'N/A'}`;
   const rechargeWhatsappUrl = `${settings.contactWhatsapp}?text=${encodeURIComponent(rechargeMessage)}`;
 
   return (

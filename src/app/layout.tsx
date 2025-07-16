@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Orbitron, Poppins } from 'next/font/google'; // Import Poppins
 import './globals.css';
@@ -10,7 +11,8 @@ import DailyRewardManager from '@/components/rewards/DailyRewardManager';
 import { FloatingChatProvider } from '@/context/FloatingChatContext';
 import { AdProvider } from '@/context/AdContext';
 import { SettingsProvider } from '@/context/SettingsContext';
-import Script from 'next/script';
+import { UpdateProvider } from '@/context/UpdateContext'; // Import UpdateProvider
+import OneSignalInitializer from '@/components/core/OneSignalInitializer';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -44,10 +46,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head></head>
       <body className={`${orbitron.variable} ${poppins.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         <FirebaseInitializer>
           <AuthProvider>
             <SettingsProvider>
+              <UpdateProvider> {/* Wrap AdProvider with UpdateProvider */}
                 <AdProvider>
                   <FloatingChatProvider>
                     <AppShell>
@@ -57,7 +61,9 @@ export default function RootLayout({
                   <Toaster />
                   <PromotionalDialog />
                   <DailyRewardManager />
+                  <OneSignalInitializer />
                 </AdProvider>
+              </UpdateProvider>
             </SettingsProvider>
           </AuthProvider>
         </FirebaseInitializer>

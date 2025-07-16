@@ -1,66 +1,69 @@
 
 'use server';
 /**
- * @fileOverview An AI agent to explain the mining process.
+ * @fileOverview An AI agent to explain the Click & Earn process.
  * 
- * - getMiningExplanation: Generates a detailed, user-friendly explanation.
- * - MiningExplanationInput: The input type for the flow.
- * - MiningExplanationOutput: The return type for the flow.
+ * - getClickAndEarnExplanation: Generates a detailed, user-friendly explanation.
+ * - ClickAndEarnExplanationInput: The input type for the flow.
+ * - ClickAndEarnExplanationOutput: The return type for the flow.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
-const MiningExplanationInputSchema = z.object({
-  rewardRate: z.number().describe("The number of tokens awarded per hash."),
+const ClickAndEarnExplanationInputSchema = z.object({
+  pointsToCurrencyRate: z.number().describe("The number of points required for conversion."),
+  currencyPerRate: z.number().describe("The amount of PKR received upon conversion."),
+  dailyPointsLimit: z.number().describe("The maximum number of points a user can earn in one day."),
 });
-export type MiningExplanationInput = z.infer<typeof MiningExplanationInputSchema>;
+export type ClickAndEarnExplanationInput = z.infer<typeof ClickAndEarnExplanationInputSchema>;
 
-const MiningExplanationOutputSchema = z.object({
-  explanation: z.string().describe("A comprehensive but easy-to-understand explanation of the mining process, covering potential earnings, how multiple users affect mining, and any limits."),
+const ClickAndEarnExplanationOutputSchema = z.object({
+  explanation: z.string().describe("A comprehensive but easy-to-understand explanation of the Click & Earn feature, covering how points work, conversion to currency, and daily limits."),
 });
-export type MiningExplanationOutput = z.infer<typeof MiningExplanationOutputSchema>;
+export type ClickAndEarnExplanationOutput = z.infer<typeof ClickAndEarnExplanationOutputSchema>;
 
-export async function getMiningExplanation(input: MiningExplanationInput): Promise<MiningExplanationOutput> {
-  return miningExplanationFlow(input);
+export async function getClickAndEarnExplanation(input: ClickAndEarnExplanationInput): Promise<ClickAndEarnExplanationOutput> {
+  return clickAndEarnExplanationFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'miningExplanationPrompt',
-  input: { schema: MiningExplanationInputSchema },
-  output: { schema: MiningExplanationOutputSchema },
+  name: 'clickAndEarnExplanationPrompt',
+  input: { schema: ClickAndEarnExplanationInputSchema },
+  output: { schema: ClickAndEarnExplanationOutputSchema },
   prompt: `
-    You are a helpful AI assistant for a gaming app. Your task is to explain the app's crypto mining feature to a user.
-    The user wants to know about potential earnings, how many users can mine, and how multiple users affect performance.
+    You are a helpful AI assistant for a gaming app. Your task is to explain the app's "Click & Earn" feature to a user.
+    The user wants to know how points work, how they convert to real money, and if there are any limits.
     
-    The current reward rate is {{rewardRate}} tokens per hash.
+    Current Conversion Rate: {{pointsToCurrencyRate}} points = {{currencyPerRate}} PKR.
+    Daily Earning Limit: {{dailyPointsLimit}} points per day.
 
     Structure your explanation to answer the following questions clearly and concisely in plain language.
-    1.  **How many tokens will I mine and how long will it take?**
-        - Explain that it depends on their device's "hashrate" (hashes per second).
-        - Give a simple, hypothetical example. For instance: "If your device achieves a hashrate of 50 H/s, you would be computing 50 hashes every second. Based on the current rate of {{rewardRate}} tokens/hash, you would earn approximately (50 * 60 * {{rewardRate}}) tokens per minute." Do the math for the example.
-    
-    2.  **How do multiple users mining at once affect my earnings?**
-        - Clarify that this is individual mining, not pooled mining.
-        - Explain that other users mining does NOT affect their personal hashrate or earnings. Each user earns based on their own device's performance. More users means more tokens are distributed by the system overall, but an individual's earnings remain independent.
+    1.  **How do I earn points?**
+        - Explain that users can earn points by clicking on available ad links on the "Earn Tasks" page.
+        - Each link has a specific point reward.
 
-    3.  **How many users can mine at once?**
-        - Explain that there is no technical limit from the app's side. The system is designed to handle many users mining simultaneously.
+    2.  **How do points convert to PKR?**
+        - State the conversion rate clearly. For example: "Once you collect at least {{pointsToCurrencyRate}} points, you can convert them. For every {{pointsToCurrencyRate}} points, you get Rs {{currencyPerRate}} in your main wallet."
+        - Mention that this conversion can be done on the Wallet page.
+
+    3.  **Is there a daily limit?**
+        - Explain the daily limit clearly. For example: "Yes, you can earn a maximum of {{dailyPointsLimit}} points from clicking tasks each day. This limit resets daily, so you can come back every day to earn more!"
 
     Format the final output as a single block of text. Use markdown for simple formatting like bolding if needed. Be encouraging and clear.
   `,
 });
 
-const miningExplanationFlow = ai.defineFlow(
+const clickAndEarnExplanationFlow = ai.defineFlow(
   {
-    name: 'miningExplanationFlow',
-    inputSchema: MiningExplanationInputSchema,
-    outputSchema: MiningExplanationOutputSchema,
+    name: 'clickAndEarnExplanationFlow',
+    inputSchema: ClickAndEarnExplanationInputSchema,
+    outputSchema: ClickAndEarnExplanationOutputSchema,
   },
   async (input) => {
     const { output } = await prompt(input);
     if (!output?.explanation) {
-      throw new Error("AI failed to generate a mining explanation.");
+      throw new Error("AI failed to generate a Click & Earn explanation.");
     }
     return output;
   }

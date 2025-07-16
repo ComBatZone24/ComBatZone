@@ -100,6 +100,8 @@ export const mockWalletTransactions: WalletTransaction[] = []; // Derived from l
 
 
 export const mockGlobalSettings: GlobalSettings = {
+  appName: 'Arena Ace',
+  appLogoUrl: '',
   registrationEnabled: true,
   shareAndEarnEnabled: true,
   watchAndEarnEnabled: true,

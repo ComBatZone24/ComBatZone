@@ -5,7 +5,7 @@ import GlassCard from "@/components/core/glass-card";
 import PageTitle from "@/components/core/page-title";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, Terminal, CheckCircle, ExternalLink, FolderCog, FileCode, Download, Wand2 } from "lucide-react";
+import { AlertCircle, Terminal, CheckCircle, ExternalLink, FolderCog, FileCode, Download, Wand2, UploadCloud } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -70,7 +70,7 @@ my-arena-ace-app/
 
             <GlassCard>
                 <h2 className="text-xl font-semibold mb-4 text-accent">Step 2: Local Setup</h2>
-                <p className="text-muted-foreground mb-2">Apne download kiye hue project ko unzip karein aur uske main folder mein terminal (Command Prompt) kholein.</p>
+                <p className="text-muted-foreground mb-2">Apne download kiye hue project ko unzip karein. Ab aap jis folder mein hain (jahan `package.json` file hai), woh aapka **main project folder** hai. Iske andar, terminal (Command Prompt) kholein.</p>
                 
                 <Separator className="my-4" />
                 
@@ -96,21 +96,30 @@ my-arena-ace-app/
             
             <GlassCard>
                 <h2 className="text-xl font-semibold mb-4 text-accent">Step 3: Upload to GitHub</h2>
-                <p className="text-muted-foreground mb-4">Ab, aapko apna project apne GitHub account par upload karna hai.</p>
+                <p className="text-muted-foreground mb-4">Ab, aapko apna project apne GitHub account par upload karna hai. Apne project ke main folder mein terminal khola rakhein.</p>
                 <ul className="list-decimal list-inside space-y-4">
-                    <li><a href="https://github.com/new" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">github.com/new</a> par ja kar ek nayi repository banayein. Isay koi bhi naam dein (jaise "arena-ace-app").</li>
-                    <li>Repository ko <strong className="text-foreground">Public</strong> rakhein. <strong className="text-foreground">"Initialize this repository with"</strong> ke neeche kisi bhi box (README, .gitignore) ko check na karein.</li>
-                    <li>"Create repository" button par click karein.</li>
-                    <li>Naye page par, "...or push an existing repository from the command line" ke niche di gayi commands ko ek ek karke apne terminal mein chalayein. Woh aisi dikhengi:
-                        <CodeBlock>{`git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-git branch -M main
+                    <li><strong className="font-semibold">Initialize Git:</strong> Terminal mein yeh command chalayein. Is se aapke folder mein Git shuru ho jayega.
+                        <CodeBlock>git init</CodeBlock>
+                    </li>
+                    <li><strong className="font-semibold">Add All Files:</strong> Ab tamam files ko Git mein add karein.
+                        <CodeBlock>git add .</CodeBlock>
+                    </li>
+                     <li><strong className="font-semibold">Commit Your Files:</strong> Files ko commit karke ek message dein.
+                        <CodeBlock>git commit -m "First commit"</CodeBlock>
+                    </li>
+                    <li><strong className="font-semibold">Create a GitHub Repository:</strong> <a href="https://github.com/new" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">github.com/new</a> par ja kar ek nayi repository banayein. Isay koi bhi naam dein (jaise "arena-ace-app"). Repository ko <strong className="text-foreground">Public</strong> rakhein. <strong className="text-foreground">"Initialize this repository with"</strong> ke neeche kisi bhi box (README, .gitignore) ko check na karein. "Create repository" button par click karein.
+                     <h4 className="text-xs font-semibold mt-4 text-muted-foreground flex items-center"><Wand2 className="mr-2 h-3 w-3"/>AI Image Prompt</h4>
+                    <PromptBlock>
+                        A clean, bright screenshot of the GitHub "Create a new repository" page. The owner and repository name fields should be visible. The "Public" option should be selected, and all checkboxes under "Initialize this repository with" should be unchecked. The green "Create repository" button should be visible at the bottom.
+                    </PromptBlock>
+                    </li>
+                    <li><strong className="font-semibold">Push to GitHub:</strong> Naye page par, "...or push an existing repository from the command line" ke niche di gayi commands ko ek ek karke apne terminal mein chalayein. Woh aisi dikhengi:
+                        <CodeBlock>{`git branch -M main
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
 git push -u origin main`}</CodeBlock>
+                         <p className="text-xs text-muted-foreground mt-1">Note: `YOUR_USERNAME` aur `YOUR_REPOSITORY` ki jagah aapka apna username aur repository ka naam hoga.</p>
                     </li>
                 </ul>
-                <h4 className="text-xs font-semibold mt-4 text-muted-foreground flex items-center"><Wand2 className="mr-2 h-3 w-3"/>AI Image Prompt</h4>
-                <PromptBlock>
-                    A clean, bright screenshot of the GitHub "Create a new repository" page. The owner and repository name fields should be visible. The "Public" option should be selected, and all checkboxes under "Initialize this repository with" should be unchecked. The green "Create repository" button should be visible at the bottom.
-                </PromptBlock>
             </GlassCard>
 
             <GlassCard>
@@ -119,28 +128,39 @@ git push -u origin main`}</CodeBlock>
                 <ul className="list-decimal list-inside space-y-4">
                     <li><a href="https://vercel.com/signup" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">vercel.com</a> par jayein aur apne GitHub account se sign up karein.</li>
                     <li>Vercel dashboard par "Add New..." par click karke "Project" select karein.</li>
-                     <li>Apni GitHub repository ko list se select karein.</li>
+                     <li>Apni GitHub repository ko list se select karke **Import** karein.</li>
                      <h4 className="text-xs font-semibold mt-4 text-muted-foreground flex items-center"><Wand2 className="mr-2 h-3 w-3"/>AI Image Prompt</h4>
                      <PromptBlock>
                         A clear screenshot of the Vercel "Import Git Repository" page. The page should show a list of GitHub repositories, with one repository highlighted or selected. The Vercel logo and user avatar should be visible in the top corners. The overall UI should be clean and modern.
                      </PromptBlock>
-                    <li>"Environment Variables" section ko kholein. Apni `.env.local` file se har line ko (naam aur value) yahan copy paste karein.</li>
+                    <li><strong className="text-destructive font-bold">Deploy se pehle:</strong> "Environment Variables" section ko kholein. Apni computer ki `.env.local` file se har line ko (naam aur value) yahan ek-ek karke copy paste karein. Yeh sab se zaroori step hai.</li>
                     <h4 className="text-xs font-semibold mt-4 text-muted-foreground flex items-center"><Wand2 className="mr-2 h-3 w-3"/>AI Image Prompt</h4>
                      <PromptBlock>
                         A focused screenshot of the Vercel project configuration page, highlighting the "Environment Variables" section. The view should clearly show multiple input fields for a variable's 'Name' and 'Value', with examples like 'NEXT_PUBLIC_FIREBASE_API_KEY' filled in. The "Deploy" button should be visible but not the main focus.
                      </PromptBlock>
-                    <li>"Deploy" button par click karein. Vercel ab aapki app ko build karke live kar dega.</li>
+                    <li>Jab tamam environment variables add ho jayein, tab **"Deploy"** button par click karein. Vercel ab aapki app ko build karke live kar dega.</li>
                 </ul>
             </GlassCard>
 
             <GlassCard>
                 <h2 className="text-xl font-semibold mb-4 text-green-400 flex items-center"><CheckCircle className="mr-2"/> Mubarak Ho!</h2>
-                <p className="text-muted-foreground mb-4">Aapki application ab internet par live hai! Vercel aapko ek URL dega jahan se aap usay access kar sakte hain. Jab bhi aap apne code mein tabdeeli karke GitHub par "push" karenge, Vercel khud hi app ko update kar dega.</p>
+                <p className="text-muted-foreground mb-4">Aapki application ab internet par live hai! Vercel aapko ek URL dega jahan se aap usay access kar sakte hain.</p>
                 <Button asChild>
                     <a href="https://vercel.com" target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="mr-2"/> Visit Vercel
                     </a>
                 </Button>
+            </GlassCard>
+
+             <GlassCard>
+                <h2 className="text-xl font-semibold mb-4 text-accent flex items-center"><UploadCloud className="mr-2"/> App Ko Update Kaise Karein?</h2>
+                <p className="text-muted-foreground mb-4">Jab bhi aap Firebase Studio mein code tabdeel karein, usay live karne ke liye aapko bas yeh 3 commands apne terminal mein chalani hain:</p>
+                <ol className="list-decimal list-inside space-y-2">
+                    <li><strong className="font-semibold">Add files:</strong> <code className="font-mono bg-muted px-1 rounded-sm">git add .</code></li>
+                    <li><strong className="font-semibold">Commit changes:</strong> <code className="font-mono bg-muted px-1 rounded-sm">git commit -m "Your update message"</code></li>
+                    <li><strong className="font-semibold">Push to GitHub:</strong> <code className="font-mono bg-muted px-1 rounded-sm">git push</code></li>
+                </ol>
+                <p className="text-sm text-muted-foreground mt-4">Jaise hi aap `git push` karenge, Vercel aapki website ko khud-ba-khud update kar dega.</p>
             </GlassCard>
 
         </div>

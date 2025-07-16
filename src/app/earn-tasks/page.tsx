@@ -11,7 +11,7 @@ import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Coins, ExternalLink, Handshake, Gift, Youtube, Video, Loader2, Cpu, ListChecks, Wand2, Tv, Award } from 'lucide-react';
+import { Coins, ExternalLink, Handshake, Gift, Youtube, Video, Loader2, Cpu, ListChecks, Wand2, Tv, Award, HelpCircle, Sparkles } from 'lucide-react';
 import Image from 'next/image';
 
 import { trackTaskClick } from './actions';
@@ -21,6 +21,7 @@ import { getYoutubeVideoId, getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { getClickAndEarnExplanation } from '@/ai/flows/mining-explanation-flow';
 
 
 const CustomTaskCard = ({ user, settings }: { user: any, settings: NonNullable<GlobalSettings['customTaskCardSettings']> }) => {
@@ -62,7 +63,7 @@ const LiveStreamSection = ({ settings }: { settings: YouTubePromotionSettings })
             <div className="aspect-video w-full rounded-lg overflow-hidden border border-border/50">
                 <iframe
                     className="w-full h-full"
-                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&showinfo=0&autohide=1&modestbranding=1`}
+                    src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&showinfo=0&autohide=1&modestbranding=1`}
                     frameBorder="0"
                     allow="autoplay; encrypted-media; picture-in-picture"
                     allowFullScreen
@@ -79,6 +80,27 @@ export default function EarnTasksPage() {
     const [globalSettings, setGlobalSettings] = useState<Partial<GlobalSettings>>({});
     const [clickAndEarnLinks, setClickAndEarnLinks] = useState<ClickAndEarnLink[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(true);
+
+    const [isGeneratingExplanation, setIsGeneratingExplanation] = useState(false);
+    const [explanation, setExplanation] = useState<string | null>(null);
+
+    const handleGetExplanation = async () => {
+        setIsGeneratingExplanation(true);
+        setExplanation(null);
+        try {
+            const result = await getClickAndEarnExplanation({
+                pointsToCurrencyRate: globalSettings.pointsToCurrencyRate || 50,
+                currencyPerRate: globalSettings.currencyPerRate || 49.5,
+                dailyPointsLimit: globalSettings.dailyPointsLimit || 100
+            });
+            setExplanation(result.explanation);
+        } catch (error) {
+            console.error("Failed to get AI explanation", error);
+            setExplanation("Sorry, I couldn't get the explanation right now. Please try again.");
+        } finally {
+            setIsGeneratingExplanation(false);
+        }
+    };
 
     useEffect(() => {
         if (!database) {
@@ -255,6 +277,31 @@ export default function EarnTasksPage() {
                             </AlertDescription>
                         </Alert>
                         <ClickAndEarnList links={clickAndEarnLinks} user={user} settings={globalSettings} />
+
+                        <div className="mt-8 border-t border-border/50 pt-6">
+                            <h4 className="text-lg font-semibold text-foreground mb-3 flex items-center justify-center gap-2">
+                                <HelpCircle className="h-5 w-5 text-accent"/>
+                                Need Help?
+                            </h4>
+                            <Button onClick={handleGetExplanation} disabled={isGeneratingExplanation}>
+                                {isGeneratingExplanation ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                                ) : (
+                                    <Sparkles className="mr-2 h-4 w-4"/>
+                                )}
+                                Ask AI: How does this work?
+                            </Button>
+                            {explanation && (
+                                <Alert className="mt-4 text-left whitespace-pre-line bg-background/50 border-accent/30">
+                                    <Sparkles className="h-4 w-4 text-accent" />
+                                    <AlertTitle className="font-bold text-accent">AI Assistant</AlertTitle>
+                                    <AlertDescription>
+                                        {explanation}
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
+
                     </GlassCard>
                 )}
             </div>

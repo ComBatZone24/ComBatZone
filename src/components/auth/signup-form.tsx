@@ -85,7 +85,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
     let referralBonusAmount = 0;
 
     try {
-      // Check for duplicate username in the new /usernames node (case-insensitive)
+      // Step 1: Check for duplicate username (case-insensitive)
       const lowercaseUsername = data.username.toLowerCase();
       const usernameRef = ref(database, `usernames/${lowercaseUsername}`);
       const usernameSnapshot = await get(usernameRef);
@@ -98,7 +98,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
       
       const usersRef = ref(database, 'users');
 
-      // Fetch global settings for referral bonus
+      // Step 2: Fetch global settings to see if referrals are enabled and get the bonus amount
       const settingsRef = ref(database, 'globalSettings');
       const settingsSnapshot = await get(settingsRef);
       if (settingsSnapshot.exists()) {
@@ -108,7 +108,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
         console.warn("Global settings not found, referral bonus might not be applied.");
       }
       
-      // Check entered referral code
+      // Step 3: If a referral code was entered, validate it
       const enteredReferralCode = data.referralCode?.trim().toUpperCase();
       if (enteredReferralCode && globalSettings?.shareAndEarnEnabled && referralBonusAmount > 0) {
         const referrerQuery = query(usersRef, orderByChild('referralCode'), equalTo(enteredReferralCode));
@@ -119,15 +119,17 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
           const referrerId = Object.keys(referrerData)[0];
           referrerUser = { id: referrerId, ...referrerData[referrerId] };
         } else {
+          // If code is invalid, inform user but allow signup to continue without bonus
           toast({ title: "Referral Info", description: "Invalid referral code provided. Proceeding without referral bonus.", variant: "default" });
         }
       }
 
-      // Create user with Firebase Auth
+      // Step 4: Create user in Firebase Authentication
       const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
       const firebaseUser = userCredential.user;
 
       if (firebaseUser) {
+        // Step 5: Prepare new user data for Realtime Database
         const newUserReferralCode = generateReferralCode(data.username);
         const bonusForNewUser = (referrerUser && globalSettings?.shareAndEarnEnabled && referralBonusAmount > 0) ? referralBonusAmount : 0;
         const defaultAvatar = `https://placehold.co/100x100.png?text=${data.username.charAt(0).toUpperCase()}`;
@@ -137,7 +139,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
           username: data.username,
           email: firebaseUser.email || data.email,
           phone: data.phone || '',
-          wallet: bonusForNewUser,
+          wallet: bonusForNewUser, // Award bonus if applicable
           role: "user",
           isActive: true,
           lastLogin: new Date().toISOString(),
@@ -153,14 +155,14 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
           totalReferralCommissionsEarned: 0,
         };
         
-        // Perform atomic multi-path update
+        // Step 6: Atomically save user data and claim username
         const updates: Record<string, any> = {};
         updates[`/users/${firebaseUser.uid}`] = newUserRecord;
         updates[`/usernames/${lowercaseUsername}`] = firebaseUser.uid; // Claim username
         
         await update(ref(database), updates);
 
-        // Log transaction for new user if bonus received
+        // Step 7: Log transaction for the new user if they received a bonus
         if (bonusForNewUser > 0) {
           const newRefereeTransaction: Omit<WalletTransaction, 'id'> = {
             type: 'referral_bonus_received', amount: bonusForNewUser, status: 'completed',
@@ -170,7 +172,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
           await push(refereeTxRef, newRefereeTransaction);
         }
 
-        // Update referrer if applicable
+        // Step 8: Update referrer's wallet and log their commission transaction
         if (referrerUser && globalSettings?.shareAndEarnEnabled && referralBonusAmount > 0) {
           const referrerUserRef = ref(database, `users/${referrerUser.id}`);
           await runTransaction(referrerUserRef, (currentReferrerData: AppUserType | null) => {
@@ -180,7 +182,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
             }
             return currentReferrerData;
           });
-          // Log transaction for referrer
+          
           const newReferrerTransaction: Omit<WalletTransaction, 'id'> = {
             type: 'referral_commission_earned', amount: referralBonusAmount, status: 'completed',
             date: new Date().toISOString(), description: `Referral commission for ${data.username}`,
@@ -199,7 +201,6 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
       let errorMessage = "Failed to create account. Please try again.";
 
        if (error.code === 'PERMISSION_DENIED') {
-          // This can now only happen if the atomic write fails (e.g. race condition on username)
           errorMessage = "This username was just claimed. Please choose another.";
           form.setError("username", { type: "manual", message: errorMessage });
        } else if (error.code === 'auth/email-already-in-use') {

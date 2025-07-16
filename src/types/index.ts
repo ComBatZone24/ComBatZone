@@ -1,4 +1,5 @@
 
+
 export interface User {
   id: string;
   username: string;
@@ -116,7 +117,7 @@ export interface WithdrawRequest {
 export interface WalletTransaction {
   id: string;
   userId?: string; // Optional for backward compatibility, but should be present
-  type: 'topup' | 'withdrawal' | 'entry_fee' | 'prize' | 'redeem_code' | 'referral_bonus_received' | 'referral_commission_earned' | 'refund' | 'shop_purchase_hold' | 'shop_purchase_complete' | 'spin_wheel_bet' | 'spin_wheel_win' | 'duel_bet' | 'duel_win' | 'watch_earn_conversion' | 'token_purchase' | 'token_sale_payout' | 'market_purchase' | 'market_sale_payout';
+  type: 'topup' | 'withdrawal' | 'entry_fee' | 'prize' | 'redeem_code' | 'referral_bonus_received' | 'referral_commission_earned' | 'refund' | 'shop_purchase_hold' | 'shop_purchase_complete' | 'spin_wheel_bet' | 'spin_wheel_win' | 'duel_bet' | 'duel_win' | 'watch_earn_conversion' | 'token_purchase' | 'token_sale_payout' | 'market_purchase' | 'market_sale_payout' | 'daily_login_reward';
   amount: number; // Positive for income, negative for expense
   status: 'pending' | 'completed' | 'rejected' | 'on_hold' | 'refunded';
   date: string; // ISO string
@@ -375,10 +376,17 @@ export interface StepAndEarnSettings {
   adViewsToClaim: number;
 }
 
+export interface AppUpdateSettings {
+    latestVersionCode: number;
+    apkUrl: string;
+    forceUpdate: boolean;
+    updateMessage: string;
+}
 
 export interface GlobalSettings {
   appName: string;
   appLogoUrl: string;
+  appUpdate?: AppUpdateSettings; // New app update settings
   feyorraLogoUrl?: string | null;
   feyorraTaskEnabled?: boolean;
   rollerCoinTaskEnabled?: boolean;
@@ -499,5 +507,3 @@ export interface GlobalSettings {
       buttonLink: string;
   }
 }
-
-    

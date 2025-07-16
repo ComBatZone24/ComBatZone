@@ -1,3 +1,4 @@
+
 import {
   Home,
   Wallet,
@@ -39,6 +40,7 @@ import {
   Database,
   MousePointerClick,
   Upload,
+  ArrowUpCircle,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -283,6 +285,12 @@ export const settingsCategories = [
     href: '/admin/settings/branding',
     icon: Palette,
     description: 'Customize app name, logo, and colors.',
+  },
+  {
+    title: 'App Update',
+    href: '/admin/settings/app-update',
+    icon: ArrowUpCircle,
+    description: 'Manage forced app updates for APK versions.',
   },
   {
     title: 'Manage Games',

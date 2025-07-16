@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Save, Settings as SettingsIcon, AlertCircle, Loader2, ArrowLeft, Zap, DollarSign, MessageCircle, FileImage, Cpu, Handshake, ShoppingCart, ListChecks, Wand2 } from 'lucide-react';
+import { Save, Settings as SettingsIcon, AlertCircle, Loader2, ArrowLeft, Zap, DollarSign, MessageCircle, FileImage, Cpu, Handshake, ShoppingCart, ListChecks, Wand2, Tv, Link as LinkIconLucide } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -33,6 +33,8 @@ const initialGeneralSettings: {
   customTaskCardSettings: { enabled: boolean; imageUrl: string; title: string; description: string; buttonText: string; buttonLink: string; };
   feyorraReferralUrl?: string;
   rollerCoinReferralUrl?: string;
+  onesignalAppId?: string;
+  onesignalApiKey?: string;
 } = {
   registrationEnabled: true,
   limitRegistrationsEnabled: false,
@@ -57,6 +59,8 @@ const initialGeneralSettings: {
   },
   rollerCoinReferralUrl: "https://rollercoin.com/?r=YOUR_REF_ID",
   feyorraReferralUrl: "https://faucetpay.io/?r=YOUR_REF_ID",
+  onesignalAppId: "",
+  onesignalApiKey: "",
 };
 
 export default function AdminGeneralSettingsPage() {
@@ -100,13 +104,15 @@ export default function AdminGeneralSettingsPage() {
             },
             rollerCoinReferralUrl: fetchedGlobalSettings.rollerCoinReferralUrl || initialGeneralSettings.rollerCoinReferralUrl,
             feyorraReferralUrl: fetchedGlobalSettings.feyorraReferralUrl || initialGeneralSettings.feyorraReferralUrl,
+            onesignalAppId: fetchedGlobalSettings.onesignalAppId || initialGeneralSettings.onesignalAppId,
+            onesignalApiKey: fetchedGlobalSettings.onesignalApiKey || initialGeneralSettings.onesignalApiKey,
           });
         } else {
           setGeneralSettings(initialGeneralSettings);
           toast({ title: "Defaults Loaded", description: "Global settings node not found, using default general settings. Save to create.", variant: "default" });
         }
       } catch (error) {
-        console.error("Error fetching general settings:", error);
+        console.error('Error fetching general settings:', error);
         toast({ title: 'Settings Error', description: 'Could not load general settings from Firebase.', variant: 'destructive' });
         setGeneralSettings(initialGeneralSettings); 
       } finally {
@@ -176,6 +182,8 @@ export default function AdminGeneralSettingsPage() {
         customTaskCardSettings: generalSettings.customTaskCardSettings,
         rollerCoinReferralUrl: generalSettings.rollerCoinReferralUrl,
         feyorraReferralUrl: generalSettings.feyorraReferralUrl,
+        onesignalAppId: generalSettings.onesignalAppId,
+        onesignalApiKey: generalSettings.onesignalApiKey,
         updatedAt: serverTimestamp() 
       };
 
@@ -224,6 +232,31 @@ export default function AdminGeneralSettingsPage() {
       </div>
 
       <form onSubmit={handleSubmitSettings} className="space-y-8">
+        <GlassCard>
+            <h3 className="text-xl font-semibold text-foreground mb-1">Push Notifications (OneSignal)</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Configure your OneSignal credentials to send push notifications to users.
+            </p>
+            <Separator className="mb-6 bg-border/30" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+                 <InputField
+                    id="onesignalAppId"
+                    label="OneSignal App ID"
+                    value={generalSettings.onesignalAppId || ''}
+                    onChange={(e) => handleInputChange('onesignalAppId', e.target.value)}
+                    placeholder="Enter your OneSignal App ID"
+                />
+                 <InputField
+                    id="onesignalApiKey"
+                    label="REST API Key"
+                    value={generalSettings.onesignalApiKey || ''}
+                    onChange={(e) => handleInputChange('onesignalApiKey', e.target.value)}
+                    placeholder="Enter your OneSignal REST API Key"
+                    type="password"
+                />
+            </div>
+        </GlassCard>
+
         <GlassCard>
           <h3 className="text-xl font-semibold text-foreground mb-1">Feature Toggles</h3>
           <p className="text-sm text-muted-foreground mb-4">
@@ -332,7 +365,7 @@ export default function AdminGeneralSettingsPage() {
                     value={generalSettings.feyorraReferralUrl || ''}
                     onChange={(e) => handleInputChange('feyorraReferralUrl', e.target.value)}
                     placeholder="https://faucetpay.io/?r=YOUR_ID"
-                    icon={FileImage}
+                    icon={LinkIconLucide}
                 />
                 
                 <Separator className="my-2 bg-border/50" />
@@ -351,7 +384,7 @@ export default function AdminGeneralSettingsPage() {
                     value={generalSettings.timebucksTaskSettings.referralUrl}
                     onChange={(e) => handleInputChange('timebucksTaskSettings', {...generalSettings.timebucksTaskSettings, referralUrl: e.target.value})}
                     placeholder="https://timebucks.com/?ref=YOUR_ID"
-                    icon={FileImage}
+                    icon={LinkIconLucide}
                     description="Your personal referral link for the TimeBucks task."
                 />
 
@@ -456,6 +489,3 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, value, onChange, typ
     {description && <p className="text-xs text-muted-foreground px-1">{description}</p>}
   </div>
 );
-
-
-    

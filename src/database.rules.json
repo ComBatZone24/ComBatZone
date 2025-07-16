@@ -1,8 +1,8 @@
 
 {
   "rules": {
-    ".read": false,
-    ".write": false,
+    ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+    ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
 
     "usernames": {
       ".read": true,
@@ -15,7 +15,7 @@
     
     "users": {
       ".write": "auth != null",
-      ".read": "(auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('users').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('demographics').val() === true)))) || (auth == null && query.orderByChild == 'referralCode')",
+      ".read": "(auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('users').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('demographics').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))) || (auth == null && query.orderByChild == 'referralCode')",
       ".indexOn": ["username", "role", "referralCode", "createdAt", "email", "gameUid", "gameName", "isOnline"],
       "$uid": {
         ".read": "auth != null",
@@ -242,7 +242,15 @@
         ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || auth.uid === $uid || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('messages').val() === true))"
       }
+    },
+
+    "globalChat": {
+      ".read": "root.child('globalSettings/globalChatEnabled').val() === true && auth != null",
+      ".indexOn": ["timestamp"],
+      "$messageId": {
+        ".write": "root.child('globalSettings/globalChatEnabled').val() === true && auth != null && newData.child('senderUid').val() === auth.uid",
+        ".validate": "newData.hasChildren(['senderUid', 'senderUsername', 'message', 'timestamp']) && newData.child('message').isString() && newData.child('message').val().length > 0 && newData.child('message').val().length < 500"
+      }
     }
   }
 }
-

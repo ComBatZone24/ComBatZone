@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -13,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Gamepad2, Loader2, Save } from 'lucide-react'; 
+import { Gamepad2, Loader2, Save, BellRing } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Tournament } from '@/types';
@@ -21,6 +22,8 @@ import { database, auth } from '@/lib/firebase/config';
 import { ref, push } from 'firebase/database';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { generateEventNotification } from '@/ai/flows/generate-event-notification-flow';
+import { sendGlobalNotification } from '../../messages/actions';
 
 const tournamentSchema = z.object({
   name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
@@ -65,6 +68,7 @@ const tournamentSchema = z.object({
   }, z.date().optional()),
   resultsProcessingTimeTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:MM)." }).optional(),
   autoPostResults: z.boolean().default(true).optional(),
+  sendNotification: z.boolean().default(true).optional(),
 });
 
 type TournamentFormValues = z.infer<typeof tournamentSchema>;
@@ -127,6 +131,7 @@ export default function CreateTournamentPage() {
       resultsProcessingTimeDate: undefined,
       resultsProcessingTimeTime: "23:00",
       autoPostResults: true,
+      sendNotification: true,
     },
   });
 
@@ -184,13 +189,38 @@ export default function CreateTournamentPage() {
       };
 
       await push(ref(database, 'tournaments'), newTournamentData);
-
+      
       toast({
         title: "Tournament Created!",
         description: `"${data.name}" has been successfully created.`,
         variant: "default",
         className: "bg-green-500/20 text-green-300 border-green-500/30",
       });
+
+      if (data.sendNotification) {
+        toast({ title: "Sending Notification...", description: "AI is crafting an announcement..." });
+        try {
+          const aiResponse = await generateEventNotification({
+            eventType: 'newTournament',
+            tournamentName: data.name,
+            prize: String(data.prizePool),
+          });
+          
+          if(aiResponse.heading && aiResponse.content) {
+             const pushResult = await sendGlobalNotification(aiResponse.heading, aiResponse.content);
+             if (pushResult.success) {
+                 toast({ title: "Notification Sent!", description: pushResult.message });
+             } else {
+                 throw new Error(pushResult.message);
+             }
+          } else {
+             throw new Error("AI failed to generate notification content.");
+          }
+        } catch (notificationError: any) {
+            toast({ title: "Notification Failed", description: `Could not send push notification: ${notificationError.message}`, variant: "destructive" });
+        }
+      }
+      
       router.push('/admin/tournaments'); 
     } catch (error) {
       console.error("Error creating tournament:", error);
@@ -246,6 +276,9 @@ export default function CreateTournamentPage() {
             <Separator className="my-4 bg-border/30" />
             <CustomFormField name="bannerImageUrl" label="Banner Image URL (Optional)" placeholder="https://example.com/banner.jpg" />
             <Controller name="customRules" control={form.control} render={({ field }) => ( <FormItem field={field} label="Custom Rules (Optional)"><Textarea placeholder="Enter any custom rules for this tournament..." className="resize-y min-h-[100px] bg-input/50 border-border/70 focus:border-accent" {...field} value={field.value || ''} /></FormItem> )}/>
+
+            <Separator className="my-4 bg-border/30" />
+            <Controller name="sendNotification" control={form.control} render={({ field }) => ( <FormItem field={field} label=""><div className="flex items-center space-x-2 pt-2"><Switch id="sendNotificationToggle" checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-accent" /><Label htmlFor="sendNotificationToggle" className="text-sm font-medium text-foreground cursor-pointer flex items-center gap-2"><BellRing className="h-4 w-4"/>Send push notification to all users</Label></div></FormItem> )}/>
 
             <div className="flex justify-end pt-4"><Button type="submit" className="neon-accent-bg" disabled={isSubmitting}>{isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}{isSubmitting ? 'Creating...' : 'Create Tournament'}</Button></div>
           </form>

@@ -1,8 +1,9 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, off, push, serverTimestamp, remove, query, orderByChild, equalTo, get } from 'firebase/database';
+import { ref, onValue, off, push, serverTimestamp, remove, query, orderByChild, equalTo, get, update } from 'firebase/database';
 import { Loader2, Trash2, Send, Users, User, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +15,7 @@ import GlassCard from '@/components/core/glass-card';
 import PageTitle from '@/components/core/page-title';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { sendGlobalNotification } from './actions';
 
 interface AdminMessage {
   text: string;
@@ -70,20 +72,28 @@ export default function AdminMessagesPage() {
   
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessageText.trim() || !database) return;
+    if (!newMessageText.trim()) return;
     setIsSendingBroadcast(true);
+
     try {
-      await push(ref(database, 'adminMessages'), {
-        text: `[Broadcast] ${newMessageText}`,
-        timestamp: serverTimestamp(),
-      });
-      setNewMessageText(''); 
-      toast({ title: "Broadcast Sent", description: "Your message has been posted to all users.", variant: "default" });
-    } catch (error) {
-      console.error("Error sending broadcast:", error);
-      toast({ title: "Error", description: "Failed to send broadcast message.", variant: "destructive" });
+        const result = await sendGlobalNotification("New Message from Admin", newMessageText);
+
+        if (result.success) {
+             if (!database) return;
+            await push(ref(database, 'adminMessages'), {
+                text: `[Broadcast] ${newMessageText}`,
+                timestamp: serverTimestamp(),
+            });
+            setNewMessageText(''); 
+            toast({ title: "Broadcast Sent", description: result.message, variant: "default", className: "bg-green-500/20 text-green-300 border-green-500/30" });
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error: any) {
+        console.error("Error sending broadcast:", error);
+        toast({ title: "Error", description: `Failed to send broadcast: ${error.message}`, variant: "destructive" });
     } finally {
-      setIsSendingBroadcast(false);
+        setIsSendingBroadcast(false);
     }
   };
   
@@ -275,7 +285,7 @@ export default function AdminMessagesPage() {
         <AlertCircle className="h-5 w-5 !text-primary" />
         <AlertTitle className="!text-primary">Important</AlertTitle>
         <AlertDescription className="!text-primary/80 text-sm">
-          Broadcast messages are visible to all users in their notification panel. Direct messages are sent only to the specified user. System notifications (like order updates) are also logged here for your reference.
+          Broadcast messages will attempt to send a Push Notification via OneSignal and are also logged here. Direct messages are private to the user but are also logged here for your reference.
         </AlertDescription>
       </Alert>
     </div>
