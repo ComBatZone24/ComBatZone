@@ -402,16 +402,17 @@ export default function ProfilePage() {
     }
     const shareUrl = `${globalSettings.shareLinkBaseUrl}?ref=${appUser.referralCode}`;
     const shareData = {
-      title: 'ComBatZon - Join the Battle!',
-      text: `Join me on ComBatZon for exciting eSports tournaments! Use my referral code: ${appUser.referralCode} to get a bonus! ${shareUrl}`,
+      title: `${globalSettings.appName || 'Arena Ace'} - Join the Battle!`,
+      text: `Join me on ${globalSettings.appName || 'Arena Ace'} for exciting eSports tournaments! Use my referral code: ${appUser.referralCode} to get a bonus!`,
       url: shareUrl,
     };
+
     try {
       if (navigator.share) {
         await navigator.share(shareData);
-        toast({ title: "Shared!", description: "Thanks for sharing ComBatZon!" });
+        toast({ title: "Shared!", description: `Thanks for sharing ${globalSettings.appName || 'Arena Ace'}!` });
       } else {
-        await navigator.clipboard.writeText(shareData.text);
+        await navigator.clipboard.writeText(shareData.text + " " + shareData.url);
         toast({ title: "Link Copied!", description: "Referral message copied to clipboard." });
       }
     } catch (error) {
