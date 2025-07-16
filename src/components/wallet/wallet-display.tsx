@@ -185,6 +185,8 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   };
 
   const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
+  const rechargeMessage = `Hi, I need to recharge my Arena Ace wallet. My User ID is: ${user.id || 'N/A'}`;
+  const rechargeWhatsappUrl = `${settings.contactWhatsapp}?text=${encodeURIComponent(rechargeMessage)}`;
 
   return (
     <div className="space-y-8">
@@ -197,7 +199,7 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" asChild disabled={!settings.contactWhatsapp}>
-            <a href={settings.contactWhatsapp ? `${settings.contactWhatsapp}?text=Assalamualaikum%20mein%20aap%20se%20raabta%20karna%20chahta%20hoon` : '#'} target="_blank" rel="noopener noreferrer">
+            <a href={settings.contactWhatsapp ? rechargeWhatsappUrl : '#'} target="_blank" rel="noopener noreferrer">
               <PlusCircle className="mr-2 h-5 w-5" /> Recharge Your Digital Vault!
               {!settings.contactWhatsapp && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
             </a>
@@ -233,6 +235,7 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
                 userProfile={user} 
                 onOpenChange={setIsWithdrawDialogOpen}
                 onSuccess={onRefresh}
+                settings={settings}
               />
             </DialogContent>
           </Dialog>
@@ -336,5 +339,3 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
 };
 
 export default WalletDisplay;
-
-    

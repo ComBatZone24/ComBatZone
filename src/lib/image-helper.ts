@@ -107,3 +107,24 @@ export function generateDataAiHint(initialUrl?: string | null, gameName?: string
 
   return `${gameKeyword} event`;
 }
+
+/**
+ * Converts a standard Google Drive file sharing link into a direct download link.
+ * This is useful for forcing a download of files like APKs instead of showing a preview page.
+ * @param googleDriveUrl The standard sharing URL from Google Drive (e.g., https://drive.google.com/file/d/FILE_ID/view?usp=sharing)
+ * @returns A direct download link or the original URL if it's not a valid Google Drive link.
+ */
+export function createDirectGoogleDriveDownloadLink(googleDriveUrl?: string | null): string {
+  if (!googleDriveUrl || !googleDriveUrl.includes('drive.google.com/file/d/')) {
+    return googleDriveUrl || '';
+  }
+
+  const match = googleDriveUrl.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    const fileId = match[1];
+    return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  }
+
+  // Fallback to the original URL if the format is unexpected
+  return googleDriveUrl;
+}
