@@ -12,7 +12,6 @@ import { FloatingChatProvider } from '@/context/FloatingChatContext';
 import { AdProvider } from '@/context/AdContext';
 import { SettingsProvider } from '@/context/SettingsContext';
 import { UpdateProvider } from '@/context/UpdateContext'; // Import UpdateProvider
-import OneSignalInitializer from '@/components/core/OneSignalInitializer';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -61,7 +60,6 @@ export default function RootLayout({
                   <Toaster />
                   <PromotionalDialog />
                   <DailyRewardManager />
-                  <OneSignalInitializer />
                 </AdProvider>
               </UpdateProvider>
             </SettingsProvider>

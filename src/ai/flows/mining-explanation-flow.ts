@@ -12,9 +12,9 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 
 const ClickAndEarnExplanationInputSchema = z.object({
-  pointsToCurrencyRate: z.number().describe("The number of points required for conversion."),
-  currencyPerRate: z.number().describe("The amount of PKR received upon conversion."),
-  dailyPointsLimit: z.number().describe("The maximum number of points a user can earn in one day."),
+  pkrPerPoint: z.number().describe("The PKR value of a single point."),
+  dailyTarget: z.number().int().describe("The fixed number of clicks required per day."),
+  dailyReward: z.number().describe("The number of points awarded for completing the daily target."),
 });
 export type ClickAndEarnExplanationInput = z.infer<typeof ClickAndEarnExplanationInputSchema>;
 
@@ -33,22 +33,22 @@ const prompt = ai.definePrompt({
   output: { schema: ClickAndEarnExplanationOutputSchema },
   prompt: `
     You are a helpful AI assistant for a gaming app. Your task is to explain the app's "Click & Earn" feature to a user.
-    The user wants to know how points work, how they convert to real money, and if there are any limits.
+    The user wants to know how to earn points, how they convert to real money, and what the daily goal is.
     
-    Current Conversion Rate: {{pointsToCurrencyRate}} points = {{currencyPerRate}} PKR.
-    Daily Earning Limit: {{dailyPointsLimit}} points per day.
+    Current Conversion Rate: 1 point = {{pkrPerPoint}} PKR.
+    Daily Goal: Complete {{dailyTarget}} clicks to earn {{dailyReward}} points.
 
     Structure your explanation to answer the following questions clearly and concisely in plain language.
     1.  **How do I earn points?**
-        - Explain that users can earn points by clicking on available ad links on the "Earn Tasks" page.
-        - Each link has a specific point reward.
+        - Explain that the main way to earn points is by completing a daily goal.
+        - The goal is to click on **{{dailyTarget}}** ad links each day.
+        - Once the goal is met, they will be awarded **{{dailyReward}}** points.
 
     2.  **How do points convert to PKR?**
-        - State the conversion rate clearly. For example: "Once you collect at least {{pointsToCurrencyRate}} points, you can convert them. For every {{pointsToCurrencyRate}} points, you get Rs {{currencyPerRate}} in your main wallet."
-        - Mention that this conversion can be done on the Wallet page.
+        - State the conversion rate clearly. For example: "Every point you earn is worth Rs {{pkrPerPoint}}. You can convert your points to PKR in your main wallet at any time."
 
     3.  **Is there a daily limit?**
-        - Explain the daily limit clearly. For example: "Yes, you can earn a maximum of {{dailyPointsLimit}} points from clicking tasks each day. This limit resets daily, so you can come back every day to earn more!"
+        - Explain the daily goal system. For example: "Yes, your daily goal is to complete {{dailyTarget}} clicks. Once you reach this target and receive your reward, you've completed the task for the day. This resets daily, so you can come back every day to earn more!"
 
     Format the final output as a single block of text. Use markdown for simple formatting like bolding if needed. Be encouraging and clear.
   `,

@@ -1,394 +1,303 @@
 
+
 "use client";
 
-import { useState, useEffect, ChangeEvent } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { useState, useEffect } from "react";
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+
 import { database } from "@/lib/firebase/config";
-import { ref, onValue, off, set, serverTimestamp, update, get, remove } from "firebase/database";
+import { ref, get, update, push, remove, serverTimestamp, onValue, off } from 'firebase/database';
+import type { GlobalSettings, ClickMilestone, ClickAndEarnLink } from '@/types';
 import { useToast } from "@/hooks/use-toast";
-import GlassCard from "@/components/core/glass-card";
-import PageTitle from "@/components/core/page-title";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Loader2, PlusCircle, Trash2, Save, Link as LinkIcon, AlertCircle, Coins, ArrowLeft, Upload, Target } from "lucide-react";
-import type { ClickAndEarnLink, GlobalSettings } from "@/types";
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+
+import GlassCard from '@/components/core/glass-card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { ArrowLeft, Loader2, Save, AlertCircle, Coins, Target, Trash2, Link as LinkIcon } from 'lucide-react';
 import Link from "next/link";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription as AlertDialogDescriptionDelete,
+  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+const FIXED_DAILY_TARGET = 98;
 
-const linkSchema = z.object({
-  title: z.string().min(1, "Task title is required."),
-  url: z.string().url("Please enter a valid URL."),
-  reward: z.coerce.number().min(0.001, "Reward must be a positive number."),
+const formSchema = z.object({
+    pkrPerPoint: z.coerce.number().min(0.000001, "Value must be positive."),
+    dailyTargetReward: z.coerce.number().min(0, "Reward must be non-negative."),
 });
 
-type LinkFormValues = z.infer<typeof linkSchema>;
+type ClickAndEarnFormValues = z.infer<typeof formSchema>;
 
-interface PageSettings {
-    pointsToCurrencyRate: number;
-    currencyPerRate: number;
-    clickAndEarnTitle: string;
-    clickAndEarnDescription: string;
-    dailyPointsLimit: number;
-}
+const defaultValues: ClickAndEarnFormValues = {
+  pkrPerPoint: 0.99,
+  dailyTargetReward: 35,
+};
 
 export default function AdminClickAndEarnSettingsPage() {
-  const [links, setLinks] = useState<ClickAndEarnLink[]>([]);
-  const [pageSettings, setPageSettings] = useState<PageSettings>({ 
-      pointsToCurrencyRate: 50, 
-      currencyPerRate: 49.5,
-      clickAndEarnTitle: 'Want higher rewards?',
-      clickAndEarnDescription: 'Use a VPN from USA, Canada, UK, Australia, or Germany and earn extra points by watching ads.',
-      dailyPointsLimit: 100, // Default daily limit
-  });
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const { toast } = useToast();
+  
+  const [links, setLinks] = useState<ClickAndEarnLink[]>([]);
+  const [isLoadingLinks, setIsLoadingLinks] = useState(true);
+  const [isAddingLink, setIsAddingLink] = useState(false);
+  const [linkTitle, setLinkTitle] = useState("Ad Task - joanordeal.com");
+  const [linkUrl, setLinkUrl] = useState("");
+  const [bulkUrls, setBulkUrls] = useState("");
+  const [isAddingBulk, setIsAddingBulk] = useState(false);
 
-  const [bulkLinksText, setBulkLinksText] = useState('');
-  const [isBulkUploading, setIsBulkUploading] = useState(false);
-  const [isDeletingAll, setIsDeletingAll] = useState(false);
-  const [isDeletingUntitled, setIsDeletingUntitled] = useState(false);
-
-
-  useEffect(() => {
-    if (!database) return;
-    const linksRef = ref(database, 'clickAndEarnLinks');
-    const settingsRef = ref(database, 'globalSettings');
-    
-    const linksUnsubscribe = onValue(linksRef, (snapshot) => {
-      const data = snapshot.val();
-      const loadedLinks: ClickAndEarnLink[] = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
-      setLinks(loadedLinks);
-    });
-
-    const settingsUnsubscribe = onValue(settingsRef, (snapshot) => {
-      const data = snapshot.val() as Partial<GlobalSettings>;
-      if (data) {
-        setPageSettings(prev => ({
-            ...prev,
-            pointsToCurrencyRate: data.pointsToCurrencyRate || 50,
-            currencyPerRate: data.currencyPerRate || 49.5,
-            clickAndEarnTitle: data.clickAndEarnTitle || prev.clickAndEarnTitle,
-            clickAndEarnDescription: data.clickAndEarnDescription || prev.clickAndEarnDescription,
-            dailyPointsLimit: data.dailyPointsLimit || 100,
-        }));
-      }
-      setIsLoading(false);
-    });
-    
-    return () => {
-        off(linksRef, 'value', linksUnsubscribe);
-        off(settingsRef, 'value', settingsUnsubscribe);
-    };
-  }, []);
-
-  const form = useForm<LinkFormValues>({
-    resolver: zodResolver(linkSchema),
-    defaultValues: { title: "", url: "", reward: 1 },
+  const form = useForm<ClickAndEarnFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: defaultValues,
   });
 
-  const handleAddLink = async (data: LinkFormValues) => {
-    if (!database) return;
-    const newLinkId = btoa(data.url).replace(/=/g, '');
-    const newLinkRef = ref(database, `clickAndEarnLinks/${newLinkId}`);
-    
-    const newLinkData = { 
-      ...data,
-      reward: parseFloat(String(data.reward)),
-      createdAt: serverTimestamp(),
-      id: newLinkId
+  useEffect(() => {
+    const fetchSettings = async () => {
+      if (!database) {
+        setIsLoading(false);
+        form.reset(defaultValues);
+        return;
+      }
+      try {
+        const settingsRef = ref(database, 'globalSettings');
+        const snapshot = await get(settingsRef);
+        if (snapshot.exists()) {
+          const settingsData: Partial<GlobalSettings> = snapshot.val();
+          const targetMilestone = settingsData.clickMilestones?.find(m => m.clicks === FIXED_DAILY_TARGET);
+
+          form.reset({
+            pkrPerPoint: settingsData.pkrPerPoint ?? defaultValues.pkrPerPoint,
+            dailyTargetReward: targetMilestone?.points ?? defaultValues.dailyTargetReward,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+        toast({ title: "Fetch Error", description: "Could not load settings.", variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
     };
     
-    await set(newLinkRef, newLinkData);
-    toast({ title: "Link Added", description: "New click & earn link has been added." });
-    form.reset();
+    const fetchLinks = () => {
+        const linksRef = ref(database, 'clickAndEarnLinks');
+        const listener = onValue(linksRef, (snapshot) => {
+            const data = snapshot.val();
+            const loadedLinks = data ? Object.keys(data).map(id => ({ id, ...data[id] })) : [];
+            setLinks(loadedLinks.sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)));
+            setIsLoadingLinks(false);
+        });
+        return listener;
+    };
+    
+    fetchSettings();
+    const linksListener = fetchLinks();
+    
+    return () => {
+        if(database) off(ref(database, 'clickAndEarnLinks'), 'value', linksListener);
+    }
+  }, [form, toast]);
+
+  const onSubmit = async (data: ClickAndEarnFormValues) => {
+    if (!database) return;
+    setIsSaving(true);
+    
+    try {
+        const settingsToUpdate: Partial<GlobalSettings> = {
+            pkrPerPoint: data.pkrPerPoint,
+            clickMilestones: [
+                { clicks: FIXED_DAILY_TARGET, points: data.dailyTargetReward }
+            ],
+        };
+        await update(ref(database, 'globalSettings'), settingsToUpdate);
+        
+        toast({
+            title: "Settings Saved",
+            description: "Click & Earn settings have been updated.",
+            className: "bg-green-500/20 text-green-300 border-green-500/30",
+        });
+
+    } catch (error: any) {
+        toast({ title: "Save Error", description: `Could not save settings: ${error.message}`, variant: "destructive" });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+  
+  const handleAddLink = async () => {
+    if (!linkUrl.trim()) {
+      toast({ title: "Input Error", description: "Please provide a URL.", variant: "destructive" });
+      return;
+    }
+    setIsAddingLink(true);
+    try {
+      await push(ref(database, 'clickAndEarnLinks'), {
+        title: linkTitle,
+        url: linkUrl,
+        createdAt: serverTimestamp(),
+      });
+      toast({ title: "Success", description: "New link added." });
+      setLinkUrl('');
+    } catch (error) {
+      console.error("Error adding link:", error);
+      toast({ title: "Error", description: "Could not add link.", variant: "destructive" });
+    } finally {
+      setIsAddingLink(false);
+    }
+  };
+
+  const handleAddBulkLinks = async () => {
+    const urls = bulkUrls.split(/[\s,]+/).filter(url => url.trim() !== '');
+    if (urls.length === 0) {
+      toast({ title: "Input Error", description: "Please paste at least one URL.", variant: "destructive" });
+      return;
+    }
+    setIsAddingBulk(true);
+    try {
+      const updates: Record<string, any> = {};
+      urls.forEach(url => {
+        const newLinkKey = push(ref(database, 'clickAndEarnLinks')).key;
+        if(newLinkKey) {
+            updates[newLinkKey] = {
+                title: "Ad Task - joanordeal.com",
+                url: url.trim(),
+                createdAt: serverTimestamp(),
+            };
+        }
+      });
+      await update(ref(database, 'clickAndEarnLinks'), updates);
+      toast({ title: "Success", description: `${urls.length} links have been added.` });
+      setBulkUrls('');
+    } catch (error) {
+      console.error("Error adding bulk links:", error);
+      toast({ title: "Error", description: "Could not add bulk links.", variant: "destructive" });
+    } finally {
+      setIsAddingBulk(false);
+    }
   };
 
   const handleDeleteLink = async (id: string) => {
-    if (!database) return;
-    await set(ref(database, `clickAndEarnLinks/${id}`), null);
-    toast({ title: "Link Removed", description: "The link has been deleted." });
-  };
-  
-  const handleSaveSettings = async () => {
-      if (!database) return;
-      setIsSaving(true);
-      try {
-        const settingsToUpdate = {
-            pointsToCurrencyRate: Number(pageSettings.pointsToCurrencyRate),
-            currencyPerRate: Number(pageSettings.currencyPerRate),
-            clickAndEarnTitle: pageSettings.clickAndEarnTitle,
-            clickAndEarnDescription: pageSettings.clickAndEarnDescription,
-            dailyPointsLimit: Number(pageSettings.dailyPointsLimit),
-        };
-        await update(ref(database, 'globalSettings'), settingsToUpdate);
-        toast({ title: "Settings Saved", description: "Page settings have been updated.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
-      } catch (error) {
-          toast({ title: "Error", description: "Could not save settings.", variant: "destructive" });
-      } finally {
-          setIsSaving(false);
-      }
-  }
-
-  const handleBulkUpload = async () => {
-    if (!bulkLinksText.trim()) {
-        toast({ title: "No links provided", description: "Please paste links into the text area.", variant: "destructive" });
-        return;
-    }
-    if (!database) return;
-
-    setIsBulkUploading(true);
-    try {
-        const existingLinksSnapshot = await get(ref(database, 'clickAndEarnLinks'));
-        const existingLinks = existingLinksSnapshot.val() || {};
-
-        const lines = bulkLinksText.split(/[\n\s]+/).map(line => line.trim()).filter(line => line.length > 0 && line.startsWith('http'));
-        
-        const updates: Record<string, any> = {};
-        let addedCount = 0;
-        let skippedCount = 0;
-
-        for (const line of lines) {
-            try {
-                const url = new URL(line);
-                const newLinkId = btoa(url.href).replace(/=/g, '');
-
-                if (existingLinks[newLinkId]) {
-                    skippedCount++;
-                    continue;
-                }
-                
-                const hostname = url.hostname.replace(/^www\./, '');
-                const newLinkData: Omit<ClickAndEarnLink, 'id'> = {
-                    title: `Ad Task - ${hostname}`,
-                    url: url.href,
-                    reward: parseFloat((Math.random() * (0.05 - 0.03) + 0.03).toFixed(5)),
-                    createdAt: serverTimestamp(),
-                };
-                updates[`clickAndEarnLinks/${newLinkId}`] = newLinkData;
-                addedCount++;
-            } catch (error) {
-                console.warn(`Skipping invalid URL during bulk upload: ${line}`);
-                skippedCount++;
-            }
-        }
-
-        if (Object.keys(updates).length > 0) {
-            await update(ref(database), updates);
-            toast({
-                title: "Bulk Upload Complete",
-                description: `${addedCount} new links added. ${skippedCount} duplicates/invalid lines were skipped.`,
-                className: "bg-green-500/20 text-green-300 border-green-500/30",
-                duration: 7000,
-            });
-        } else {
-            toast({ title: "No New Links", description: "No new or valid URLs were found in the provided text.", variant: "destructive" });
-        }
-        
-        setBulkLinksText('');
-    } catch (error: any) {
-        toast({ title: "Database Error", description: "Failed to save links to the database.", variant: "destructive" });
-    } finally {
-        setIsBulkUploading(false);
-    }
+    await remove(ref(database, `clickAndEarnLinks/${id}`));
   };
 
   const handleDeleteAllLinks = async () => {
-    if (!database) return;
-    setIsDeletingAll(true);
-    try {
-        await remove(ref(database, 'clickAndEarnLinks'));
-        toast({ title: "All Links Deleted", description: "All Click & Earn links have been removed.", className: "bg-green-500/20" });
-    } catch (error) {
-        toast({ title: "Error", description: "Could not delete all links.", variant: "destructive" });
-    } finally {
-        setIsDeletingAll(false);
-    }
+    await remove(ref(database, 'clickAndEarnLinks'));
+    toast({ title: "All links deleted", description: "The Click & Earn link list has been cleared." });
   };
 
-  const handleDeleteUntitledLinks = async () => {
-      if (!database) return;
-      setIsDeletingUntitled(true);
-      try {
-          const linksRef = ref(database, 'clickAndEarnLinks');
-          const snapshot = await get(linksRef);
-          if (!snapshot.exists()) {
-              toast({ title: "No Links Found", description: "There are no links to delete.", variant: "default" });
-              setIsDeletingUntitled(false);
-              return;
-          }
-          const allLinks = snapshot.val();
-          const updates: Record<string, null> = {};
-          let deletedCount = 0;
-          for (const key in allLinks) {
-              if (allLinks[key].title === 'Untitled Task' || !allLinks[key].title) {
-                  updates[`clickAndEarnLinks/${key}`] = null;
-                  deletedCount++;
-              }
-          }
-
-          if (deletedCount > 0) {
-              await update(ref(database), updates);
-              toast({ title: "Cleanup Complete", description: `${deletedCount} untitled tasks have been deleted.`, className: "bg-green-500/20" });
-          } else {
-              toast({ title: "No Untitled Tasks Found", description: "All links have a valid title.", variant: "default" });
-          }
-      } catch (error) {
-          toast({ title: "Error", description: "Could not delete untitled tasks.", variant: "destructive" });
-      } finally {
-          setIsDeletingUntitled(false);
-      }
-  };
-
-  if (isLoading) {
-    return <div className="flex justify-center items-center h-64"><Loader2 className="h-10 w-10 animate-spin text-accent" /></div>;
-  }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between mb-8">
-          <PageTitle title="Click &amp; Earn Settings" subtitle="Manage links and points-to-currency conversion rates."/>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <div className="flex items-center justify-between mb-8">
+           <h1 className="text-3xl md:text-4xl font-bold text-foreground flex items-center">
+            <Target className="mr-3 h-8 w-8 text-accent" /> Click &amp; Earn Settings
+          </h1>
            <Button variant="outline" asChild><Link href="/admin/settings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Settings</Link></Button>
-      </div>
+        </div>
       
-       <GlassCard>
-        <h3 className="text-xl font-semibold text-foreground mb-4">Page &amp; Reward Settings</h3>
-         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
-             <div className="space-y-1">
-                <Label htmlFor="pointsToCurrencyRate">Minimum Points to Convert</Label>
-                <Input id="pointsToCurrencyRate" type="number" value={pageSettings.pointsToCurrencyRate} onChange={e => setPageSettings(s => ({...s, pointsToCurrencyRate: Number(e.target.value)}))} placeholder="e.g., 50" />
-            </div>
-             <div className="space-y-1">
-                <Label htmlFor="currencyPerRate">PKR Value for Conversion</Label>
-                <Input id="currencyPerRate" type="number" step="any" value={pageSettings.currencyPerRate} onChange={e => setPageSettings(s => ({...s, currencyPerRate: Number(e.target.value)}))} placeholder="e.g., 49.5" />
-            </div>
-            <div className="space-y-1">
-                <Label htmlFor="dailyPointsLimit" className="flex items-center gap-1"><Target className="h-4 w-4"/>Daily Points Limit Per User</Label>
-                <Input id="dailyPointsLimit" type="number" value={pageSettings.dailyPointsLimit} onChange={e => setPageSettings(s => ({...s, dailyPointsLimit: Number(e.target.value)}))} placeholder="e.g., 100" />
-            </div>
-         </div>
-         <p className="text-xs text-muted-foreground mt-2">Example: If Minimum Points is {pageSettings.pointsToCurrencyRate} and PKR Value is {pageSettings.currencyPerRate}, users will get Rs {pageSettings.currencyPerRate} for every {pageSettings.pointsToCurrencyRate} points they convert.</p>
-         
-         <Separator className="my-6 bg-border/30" />
-         <h4 className="text-lg font-semibold text-foreground mb-2">Alert Box Content</h4>
-         <div className="space-y-4">
-            <div className="space-y-1">
-                <Label htmlFor="alertTitle">Alert Title</Label>
-                <Input id="alertTitle" value={pageSettings.clickAndEarnTitle} onChange={e => setPageSettings(s => ({...s, clickAndEarnTitle: e.target.value}))} placeholder="e.g., Want higher rewards?" />
-            </div>
-            <div className="space-y-1">
-                <Label htmlFor="alertDescription">Alert Description</Label>
-                <Textarea id="alertDescription" value={pageSettings.clickAndEarnDescription} onChange={e => setPageSettings(s => ({...s, clickAndEarnDescription: e.target.value}))} placeholder="e.g., Use a VPN from..." />
-            </div>
-         </div>
-         
-         <Button onClick={handleSaveSettings} disabled={isSaving} className="mt-6">
-            {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2 h-4"/>}
-            Save Page Settings
-        </Button>
-      </GlassCard>
-
-      <GlassCard>
-        <h3 className="text-xl font-semibold text-foreground mb-4">Add New Link (Manual)</h3>
-        <form onSubmit={form.handleSubmit(handleAddLink)} className="space-y-4">
-          <div className="space-y-1"><Label htmlFor="title">Task Title</Label><Input id="title" {...form.register('title')} placeholder="e.g., Watch YouTube Video" /></div>
-          <div className="space-y-1"><Label htmlFor="url">Ad Link URL</Label><Input id="url" {...form.register('url')} placeholder="https://ad-link.com/..." /></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-            <div className="space-y-1"><Label htmlFor="reward">Points Reward</Label><Input id="reward" type="number" step="any" {...form.register('reward')} placeholder="e.g. 0.5" /></div>
-             <Button type="submit" disabled={form.formState.isSubmitting} className="w-full md:w-auto"><PlusCircle className="mr-2 h-4"/> Add Link</Button>
-          </div>
-        </form>
-      </GlassCard>
-
-      <GlassCard>
-        <h3 className="text-xl font-semibold text-foreground mb-4">Bulk Paste Links</h3>
-        <p className="text-sm text-muted-foreground mb-4">Paste a list of URLs (one per line or separated by spaces) to add multiple links at once. A random reward between 0.03 and 0.05 will be assigned.</p>
-        <div className="flex flex-col gap-4">
-            <div className="w-full space-y-1">
-                <Label htmlFor="bulk-paste-input">Paste Links Here</Label>
-                <Textarea 
-                    id="bulk-paste-input" 
-                    value={bulkLinksText}
-                    onChange={(e) => setBulkLinksText(e.target.value)}
-                    className="h-48 font-mono text-xs bg-input/50"
-                    placeholder="https://example.com/link1&#10;https://example.com/link2&#10;https://example.com/link3"
+        <GlassCard>
+            <h3 className="text-xl font-semibold text-foreground mb-4">Daily Target & Reward</h3>
+            <p className="text-sm text-muted-foreground mb-4">Define the reward for completing the daily click target of {FIXED_DAILY_TARGET} clicks.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormField
+                    control={form.control}
+                    name="dailyTargetReward"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Daily Target ({FIXED_DAILY_TARGET} Clicks) Reward</FormLabel>
+                            <Input type="number" {...field} placeholder="e.g., 35" />
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="pkrPerPoint"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center gap-2"><Coins className="h-4 w-4 text-muted-foreground"/> Value of 1 Point (in PKR)</FormLabel>
+                            <Input type="number" step="any" {...field} placeholder="e.g., 0.99" />
+                            <FormMessage/>
+                        </FormItem>
+                    )}
                 />
             </div>
-            <Button 
-                onClick={handleBulkUpload} 
-                disabled={isBulkUploading || !bulkLinksText.trim()} 
-                className="w-full sm:w-auto neon-accent-bg"
-            >
-                {isBulkUploading ? <Loader2 className="mr-2 h-4 animate-spin"/> : <Upload className="mr-2 h-4"/>}
-                Add Pasted Links
-            </Button>
-        </div>
-      </GlassCard>
+       </GlassCard>
+        
+        <GlassCard>
+            <h3 className="text-xl font-semibold text-foreground mb-4">Manage Ad Links</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4 p-4 border rounded-lg">
+                    <h4 className="font-medium">Add New Link (Manual)</h4>
+                     <div className="space-y-1"><Label htmlFor="linkTitle">Task Title</Label><Input id="linkTitle" value={linkTitle} onChange={e => setLinkTitle(e.target.value)}/></div>
+                     <div className="space-y-1"><Label htmlFor="linkUrl">Ad Link URL</Label><Input id="linkUrl" value={linkUrl} onChange={e => setLinkUrl(e.target.value)}/></div>
+                     <Button onClick={handleAddLink} disabled={isAddingLink} className="w-full">{isAddingLink && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Add Link</Button>
+                </div>
+                 <div className="space-y-4 p-4 border rounded-lg">
+                    <h4 className="font-medium">Bulk Paste Links</h4>
+                    <p className="text-xs text-muted-foreground">Paste a list of URLs (one per line or separated by spaces) to add multiple links at once.</p>
+                     <Textarea placeholder="Paste Links Here" value={bulkUrls} onChange={e => setBulkUrls(e.target.value)} className="h-28"/>
+                     <Button onClick={handleAddBulkLinks} disabled={isAddingBulk} className="w-full">{isAddingBulk && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Add Pasted Links</Button>
+                </div>
+            </div>
+        </GlassCard>
+        
+        <GlassCard className="p-0">
+             <div className="p-4 border-b border-border/30 flex justify-between items-center">
+                 <h3 className="text-lg font-semibold">Existing Links ({links.length})</h3>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={links.length === 0}><Trash2 className="mr-2 h-4 w-4"/> Delete All</Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="glass-card">
+                    <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This will delete all {links.length} links permanently. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteAllLinks}>Delete All</AlertDialogAction></AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+            </div>
+            <ScrollArea className="h-96">
+                <div className="p-4 space-y-2">
+                    {isLoadingLinks ? <div className="flex justify-center p-4"><Loader2 className="animate-spin h-6 w-6"/></div> :
+                        links.length === 0 ? <p className="text-center text-muted-foreground py-4">No links added yet.</p> :
+                        links.map(link => (
+                            <div key={link.id} className="flex items-center gap-2 p-2 bg-muted/20 rounded-md">
+                                <LinkIcon className="h-4 w-4 text-muted-foreground flex-shrink-0"/>
+                                <p className="text-sm text-foreground flex-grow truncate" title={link.url}>{link.title || 'Untitled Task'}</p>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDeleteLink(link.id)}><Trash2 className="h-4 w-4"/></Button>
+                            </div>
+                        ))
+                    }
+                </div>
+            </ScrollArea>
+        </GlassCard>
 
-      <GlassCard>
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-            <h3 className="text-xl font-semibold text-foreground">Existing Links ({links.length})</h3>
-            <div className="flex gap-2 flex-wrap">
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" className="bg-yellow-600 hover:bg-yellow-700" disabled={links.length === 0 || isDeletingUntitled}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Untitled
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="glass-card">
-                        <AlertDialogHeader><AlertDialogTitle>Delete Untitled Tasks?</AlertDialogTitle><AlertDialogDescriptionDelete>This will permanently delete all links with the title "Untitled Task" or no title at all. This action cannot be undone.</AlertDialogDescriptionDelete></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteUntitledLinks} disabled={isDeletingUntitled}>{isDeletingUntitled ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Yes, Delete Untitled</AlertDialogAction></AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-                <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                        <Button variant="destructive" disabled={links.length === 0 || isDeletingAll}>
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete All
-                        </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="glass-card">
-                        <AlertDialogHeader><AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle><AlertDialogDescriptionDelete>This will permanently delete all {links.length} Click & Earn links. This action cannot be undone.</AlertDialogDescriptionDelete></AlertDialogHeader>
-                        <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteAllLinks} disabled={isDeletingAll}>{isDeletingAll ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Yes, Delete All</AlertDialogAction></AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            </div>
-        </div>
-        <ScrollArea className="h-96">
-            <div className="space-y-3 pr-2">
-                {links.length === 0 ? <p className="text-muted-foreground text-center py-4">No links added yet.</p> : links.map(link => (
-                    <div key={link.id} className="p-3 border rounded-lg bg-background/50 flex flex-col sm:flex-row items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-foreground truncate" title={link.title}>{link.title || 'Untitled Task'}</p>
-                            <p className="font-mono text-xs text-muted-foreground break-all truncate" title={link.url}>{link.url}</p>
-                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1"><span>Reward: <span className="font-semibold text-foreground">{link.reward} pts</span></span></div>
-                        </div>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteLink(link.id)} className="flex-shrink-0"><Trash2 className="h-4 w-4"/></Button>
-                    </div>
-                ))}
-            </div>
-        </ScrollArea>
-      </GlassCard>
-       <Alert variant="default" className="bg-primary/10 border-primary/30">
-          <AlertCircle className="h-5 w-5 !text-primary" /><AlertTitle className="!text-primary">How It Works</AlertTitle><AlertDescription className="!text-primary/80">Users will see a single "Watch &amp; Earn" button. Clicking it serves a random available link. A link is on cooldown for 24 hours for a user after being clicked. After all links are clicked, there is a 24-hour global cooldown for the user.</AlertDescription>
+        <Alert variant="default" className="bg-primary/10 border-primary/30">
+          <AlertCircle className="h-5 w-5 !text-primary" /><AlertTitle className="!text-primary">How It Works</AlertTitle><AlertDescription className="!text-primary/80">Every user will now have a daily target of {FIXED_DAILY_TARGET} clicks. Upon completing this target, they will be awarded the points you set above. Users can convert their accumulated points to PKR at any time using the conversion rate specified.</AlertDescription>
         </Alert>
-    </div>
+
+        <div className="flex justify-end pt-4">
+          <Button type="submit" disabled={isSaving || isLoading} className="neon-accent-bg">
+            {isSaving ? <Loader2 className="animate-spin mr-2"/> : <Save className="mr-2 h-4"/>}
+            Save Settings
+        </Button>
+        </div>
+      </form>
+    </Form>
   );
 }

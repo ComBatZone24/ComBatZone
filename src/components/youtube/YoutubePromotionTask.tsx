@@ -10,7 +10,6 @@ import { User, Gift, CheckCircle, Upload, Loader2, AlertCircle } from 'lucide-re
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { getDatabase, ref as dbRef, set, serverTimestamp, push, get, runTransaction } from "firebase/database";
 import { verifyYoutubeSubscription } from '@/ai/flows/verify-youtube-subscription-flow';
 

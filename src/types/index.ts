@@ -23,8 +23,10 @@ export interface User {
   totalReferralCommissionsEarned?: number;
   watchAndEarnPoints?: number;
   dailyClickAndEarn?: {
-    points: number;
     date: string; // YYYY-MM-DD format
+    clickCount: number;
+    dailyClickTarget: number; // The target for the day (e.g., 40, 98)
+    isTargetCompleted: boolean;
   };
   youtubeSubscriptionAwarded?: boolean;
   delegatePermissions?: {
@@ -37,6 +39,7 @@ export interface User {
     country_flag?: string;
     isp?: string;
   } | null;
+  userClickAndEarnClaims?: Record<string, number>;
 }
 
 export interface Tournament {
@@ -308,7 +311,6 @@ export interface ClickAndEarnLink {
   id: string;
   title: string;
   url: string;
-  reward: number; // Points
   createdAt?: any;
 }
 
@@ -383,10 +385,15 @@ export interface AppUpdateSettings {
     updateMessage: string;
 }
 
+export interface ClickMilestone {
+    clicks: number;
+    points: number;
+}
+
 export interface GlobalSettings {
   appName: string;
   appLogoUrl: string;
-  appUpdate?: AppUpdateSettings; // New app update settings
+  appUpdate?: AppUpdateSettings; 
   feyorraLogoUrl?: string | null;
   feyorraTaskEnabled?: boolean;
   rollerCoinTaskEnabled?: boolean;
@@ -396,33 +403,19 @@ export interface GlobalSettings {
   shareAndEarnEnabled: boolean;
   watchAndEarnEnabled: boolean; // This might be deprecated
   globalChatEnabled: boolean;
+  clickAndEarnEnabled: boolean; // For toggling the entire feature
   redeemCodeEnabled: boolean;
   customMessageEnabled: boolean;
   mobileLoadEnabled?: boolean; // New setting for mobile load
   shopEnabled?: boolean; // New setting for the shop
   dailyUserLimit?: number;
-  onesignalAppId?: string;
-  onesignalApiKey?: string;
-  liveTournamentEditingEnabled?: boolean;
-  contactWhatsapp?: string;
-  contactEmail?: string;
-  socialMediaFacebook?: string;
-  socialMediaInstagram?: string;
-  socialMediaYoutube?: string;
-  watchAndEarnAdIdentifiers?: { // This might be deprecated
-    banner: string;
-    interstitial: string;
-    rewarded: string;
-    native: string;
-  };
-  pointsPerAdWatch?: number; // This might be deprecated
-  pointsToCurrencyRate?: number;
-  currencyPerRate?: number;
+  
+  // Click and Earn Rates
+  clickMilestones?: ClickMilestone[];
+  pkrPerPoint?: number;
+  
   clickAndEarnTitle?: string;
   clickAndEarnDescription?: string;
-  dailyPointsLimit?: number; // New setting for daily limit
-  referralBonusAmount?: number;
-  shareLinkBaseUrl?: string;
   updatedAt?: any; // To track last save time
 
   // Task URLs

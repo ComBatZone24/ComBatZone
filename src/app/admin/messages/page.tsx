@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, off, push, serverTimestamp, remove, query, orderByChild, equalTo, get, update } from 'firebase/database';
+import { ref, onValue, off, push, serverTimestamp, remove, query, get, update } from 'firebase/database';
 import { Loader2, Trash2, Send, Users, User, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -13,9 +13,20 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import GlassCard from '@/components/core/glass-card';
 import PageTitle from '@/components/core/page-title';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { sendGlobalNotification } from './actions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface AdminMessage {
   text: string;
@@ -28,11 +39,14 @@ export default function AdminMessagesPage() {
   const [loading, setLoading] = useState(true);
   const [newMessageText, setNewMessageText] = useState('');
   const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
+  
   const [targetUserIdentifier, setTargetUserIdentifier] = useState('');
   const [directMessageText, setDirectMessageText] = useState('');
   const [isSendingDirect, setIsSendingDirect] = useState(false);
+
+  const [messageToDelete, setMessageToDelete] = useState<AdminMessage | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
 
   const { toast } = useToast();
 
@@ -164,130 +178,145 @@ export default function AdminMessagesPage() {
   };
 
 
-  const handleDeleteMessage = async (messageId: string) => {
-    if (!database || deletingId) return;
+  const handleDeleteConfirm = async () => {
+    if (!messageToDelete || !database) return;
 
-    const confirmDelete = window.confirm("Are you sure you want to delete this global message?");
-    if (!confirmDelete) return;
-
-    setDeletingId(messageId);
+    setIsDeleting(true);
     try {
-      await remove(ref(database, `adminMessages/${messageId}`));
+      await remove(ref(database, `adminMessages/${messageToDelete.id}`));
       toast({ title: "Message Deleted", description: "The global message has been removed.", variant: "default" });
+      setMessageToDelete(null); 
     } catch (error: any) {
       console.error("Error deleting message:", error);
       toast({ title: "Deletion Failed", description: "Could not delete message. Check permissions.", variant: "destructive" });
     } finally {
-        setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
   return (
-    <div className="space-y-8">
-      <PageTitle title="Communications Log" subtitle="Send messages and view all broadcast, direct, and system notifications." />
+    <>
+      <div className="space-y-8">
+        <PageTitle title="Communications Log" subtitle="Send messages and view all broadcast, direct, and system notifications." />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <GlassCard>
-            <Tabs defaultValue="broadcast" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="broadcast"><Users className="mr-2 h-4 w-4"/>Broadcast</TabsTrigger>
-                <TabsTrigger value="direct"><User className="mr-2 h-4 w-4"/>Direct Message</TabsTrigger>
-            </TabsList>
-            <TabsContent value="broadcast" className="pt-4">
-                 <form onSubmit={handleSendBroadcast} className="flex flex-col space-y-4">
-                    <Textarea
-                        className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
-                        rows={6}
-                        placeholder="Type your message to all users here..."
-                        value={newMessageText}
-                        onChange={(e) => setNewMessageText(e.target.value)}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <GlassCard>
+              <Tabs defaultValue="broadcast" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="broadcast"><Users className="mr-2 h-4 w-4"/>Broadcast</TabsTrigger>
+                  <TabsTrigger value="direct"><User className="mr-2 h-4 w-4"/>Direct Message</TabsTrigger>
+              </TabsList>
+              <TabsContent value="broadcast" className="pt-4">
+                  <form onSubmit={handleSendBroadcast} className="flex flex-col space-y-4">
+                      <Textarea
+                          className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
+                          rows={6}
+                          placeholder="Type your message to all users here..."
+                          value={newMessageText}
+                          onChange={(e) => setNewMessageText(e.target.value)}
+                          required
+                      />
+                      <Button
+                          type="submit"
+                          className="w-full neon-accent-bg"
+                          disabled={!newMessageText.trim() || isSendingBroadcast}
+                      >
+                          {isSendingBroadcast ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
+                          Send to Everyone
+                      </Button>
+                  </form>
+              </TabsContent>
+              <TabsContent value="direct" className="pt-4">
+                  <form onSubmit={handleSendDirect} className="flex flex-col space-y-4">
+                      <Input
+                        placeholder="Enter target user's exact username or email"
+                        value={targetUserIdentifier}
+                        onChange={(e) => setTargetUserIdentifier(e.target.value)}
+                        className="bg-background/40 border-border/60"
                         required
-                    />
-                    <Button
-                        type="submit"
-                        className="w-full neon-accent-bg"
-                        disabled={!newMessageText.trim() || isSendingBroadcast}
-                    >
-                        {isSendingBroadcast ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
-                        Send to Everyone
-                    </Button>
-                </form>
-            </TabsContent>
-            <TabsContent value="direct" className="pt-4">
-                 <form onSubmit={handleSendDirect} className="flex flex-col space-y-4">
-                    <Input
-                      placeholder="Enter target user's exact username or email"
-                      value={targetUserIdentifier}
-                      onChange={(e) => setTargetUserIdentifier(e.target.value)}
-                      className="bg-background/40 border-border/60"
-                      required
-                    />
-                    <Textarea
-                        className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
-                        rows={6}
-                        placeholder="Type your direct message here..."
-                        value={directMessageText}
-                        onChange={(e) => setDirectMessageText(e.target.value)}
-                        required
-                    />
-                    <Button
-                        type="submit"
-                        className="w-full neon-accent-bg"
-                        disabled={!targetUserIdentifier.trim() || !directMessageText.trim() || isSendingDirect}
-                    >
-                         {isSendingDirect ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
-                        Send Direct Message
-                    </Button>
-                </form>
-            </TabsContent>
-            </Tabs>
-        </GlassCard>
-        
-        <GlassCard className="p-0 flex flex-col">
-            <div className="p-4 border-b border-border/30">
-                <h3 className="text-lg font-semibold">Communications Log</h3>
-                 <p className="text-xs text-muted-foreground">This log shows all outgoing messages.</p>
-            </div>
-          {loading ? (
-            <div className="flex-1 flex justify-center items-center">
-              <Loader2 className="h-8 w-8 animate-spin text-accent" />
-            </div>
-          ) : messages.length === 0 ? (
-            <p className="flex-1 text-center text-muted-foreground p-10">No messages or notifications sent yet.</p>
-          ) : (
-            <ScrollArea className="flex-1 max-h-[450px]">
-                <ul className="space-y-2 p-4">
-                {messages.map((message) => (
-                    <li key={message.id} className="border-b border-border/40 pb-3">
-                    <p className="text-foreground mb-1">{message.text}</p>
-                    <div className="flex justify-between items-center">
-                        <p className="text-xs text-muted-foreground">
-                            {message.timestamp ? format(new Date(message.timestamp), 'PPpp') : 'N/A'}
-                        </p>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-destructive/70 hover:text-destructive"
-                            onClick={() => handleDeleteMessage(message.id)}
-                            disabled={!!deletingId}
-                        >
-                            {deletingId === message.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>}
-                        </Button>
-                    </div>
-                    </li>
-                ))}
-                </ul>
-            </ScrollArea>
-          )}
-        </GlassCard>
+                      />
+                      <Textarea
+                          className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
+                          rows={6}
+                          placeholder="Type your direct message here..."
+                          value={directMessageText}
+                          onChange={(e) => setDirectMessageText(e.target.value)}
+                          required
+                      />
+                      <Button
+                          type="submit"
+                          className="w-full neon-accent-bg"
+                          disabled={!targetUserIdentifier.trim() || !directMessageText.trim() || isSendingDirect}
+                      >
+                          {isSendingDirect ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
+                          Send Direct Message
+                      </Button>
+                  </form>
+              </TabsContent>
+              </Tabs>
+          </GlassCard>
+          
+          <GlassCard className="p-0 flex flex-col">
+              <div className="p-4 border-b border-border/30">
+                  <h3 className="text-lg font-semibold">Communications Log</h3>
+                  <p className="text-xs text-muted-foreground">This log shows all outgoing messages.</p>
+              </div>
+            {loading ? (
+              <div className="flex-1 flex justify-center items-center">
+                <Loader2 className="h-8 w-8 animate-spin text-accent" />
+              </div>
+            ) : messages.length === 0 ? (
+              <p className="flex-1 text-center text-muted-foreground p-10">No messages or notifications sent yet.</p>
+            ) : (
+              <ScrollArea className="flex-1 max-h-[450px]">
+                  <ul className="space-y-2 p-4">
+                  {messages.map((message) => (
+                      <li key={message.id} className="border-b border-border/40 pb-3">
+                        <p className="text-foreground mb-1 whitespace-pre-wrap break-words">{message.text}</p>
+                        <div className="flex justify-between items-center">
+                            <p className="text-xs text-muted-foreground">
+                                {message.timestamp ? format(new Date(message.timestamp), 'PPpp') : 'N/A'}
+                            </p>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                  <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 text-destructive/70 hover:text-destructive"
+                                      onClick={() => setMessageToDelete(message)}
+                                      disabled={isDeleting}
+                                  >
+                                      {isDeleting && messageToDelete?.id === message.id ? <Loader2 className="h-4 w-4 animate-spin"/> : <Trash2 className="h-4 w-4"/>}
+                                  </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="glass-card">
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>This will permanently delete the message "{message.text.substring(0, 30)}...". This action cannot be undone.</AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel onClick={() => setMessageToDelete(null)}>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleDeleteConfirm} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
+                      </li>
+                  ))}
+                  </ul>
+                  <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            )}
+          </GlassCard>
+        </div>
+        <Alert variant="default" className="bg-primary/10 border-primary/30">
+          <AlertCircle className="h-5 w-5 !text-primary" />
+          <AlertTitle className="!text-primary">Important</AlertTitle>
+          <AlertDescription className="!text-primary/80 text-sm">
+            Broadcast messages will attempt to send a Push Notification via OneSignal and are also logged here. Direct messages are private to the user but are also logged here for your reference.
+          </AlertDescription>
+        </Alert>
       </div>
-       <Alert variant="default" className="bg-primary/10 border-primary/30">
-        <AlertCircle className="h-5 w-5 !text-primary" />
-        <AlertTitle className="!text-primary">Important</AlertTitle>
-        <AlertDescription className="!text-primary/80 text-sm">
-          Broadcast messages will attempt to send a Push Notification via OneSignal and are also logged here. Direct messages are private to the user but are also logged here for your reference.
-        </AlertDescription>
-      </Alert>
-    </div>
+    </>
   );
 }

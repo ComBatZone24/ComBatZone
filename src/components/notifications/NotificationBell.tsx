@@ -9,7 +9,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogTrigger
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { database } from '@/lib/firebase/config';
 import { ref, onValue, off, update } from 'firebase/database';
@@ -17,6 +19,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import type { UserNotification } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 
 // props for styling
 interface NotificationBellProps {
@@ -129,7 +132,8 @@ export default function NotificationBell({ className, isFloating = false }: Noti
           <DialogTitle className="text-accent">Notifications</DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground">Messages from administrators.</DialogDescription>
         </DialogHeader>
-        <div className="mt-4 space-y-3 max-h-96 overflow-y-auto pr-2">
+
+        <div className="mt-4 space-y-3 max-h-80 overflow-y-auto pr-2">
           {isLoadingMessages ? (
             <div className="flex items-center justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-accent" /></div>
           ) : combinedMessages.length === 0 ? (
@@ -154,6 +158,11 @@ export default function NotificationBell({ className, isFloating = false }: Noti
             })
           )}
         </div>
+        <DialogFooter className="mt-4">
+          <DialogClose asChild>
+            <Button variant="outline">Close</Button>
+          </DialogClose>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

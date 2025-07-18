@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview An AI agent to verify YouTube subscription screenshots.
@@ -38,8 +39,8 @@ const verificationPrompt = ai.definePrompt({
 Your task is to analyze the provided screenshot and determine if the user has successfully subscribed to the correct channel.
 
 You MUST verify two things:
-1.  **Subscription Status**: Look for UI elements that indicate a subscription. This is typically a button with text like "Subscribed", a bell icon, or similar indicators. Set \`isSubscribed\` to true if you are confident the user is subscribed.
-2.  **Channel Name**: Compare the channel name visible in the screenshot to the \`expectedChannelName\`. They must match exactly, ignoring case. Set \`isCorrectChannel\` to true if they match.
+1.  **Subscription Status**: Look for UI elements that indicate a subscription. This is typically a button with text like "Subscribed" or "Suscrito" or a filled-in bell icon. A button saying "Subscribe" means they are NOT subscribed. Set \`isSubscribed\` to true only if you are confident the user is subscribed.
+2.  **Channel Name**: Compare the channel name visible in the screenshot to the \`expectedChannelName\`. They must match, ignoring case and minor punctuation. Set \`isCorrectChannel\` to true if they match.
 
 The final \`verificationPassed\` field should ONLY be true if BOTH \`isSubscribed\` AND \`isCorrectChannel\` are true.
 Provide a clear \`reason\` for your decision, for example: "Verification failed because the 'Subscribed' button was not visible." or "Verification passed."
@@ -56,17 +57,28 @@ const verifyYoutubeSubscriptionFlow = ai.defineFlow(
     outputSchema: VerifySubscriptionOutputSchema,
   },
   async (input) => {
-    const { output } = await verificationPrompt(input);
+    // Adding safety settings to reduce the chance of the model refusing to process the screenshot.
+    const { output } = await verificationPrompt(input, {
+        config: {
+            safetySettings: [
+                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_MEDIUM_AND_ABOVE' },
+            ]
+        }
+    });
+
     if (!output) {
       return {
         isSubscribed: false,
         isCorrectChannel: false,
         verificationPassed: false,
-        reason: 'AI model failed to return a valid analysis.',
+        reason: 'AI model failed to return a valid analysis. Please try again with a clearer screenshot.',
       };
     }
     
-    // Final logic check
+    // Final logic check on the server to ensure consistency
     const passed = output.isSubscribed && output.isCorrectChannel;
     
     return {

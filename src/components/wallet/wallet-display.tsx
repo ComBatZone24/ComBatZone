@@ -51,18 +51,6 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
   const [isMobileLoadDialogOpen, setIsMobileLoadDialogOpen] = useState(false);
   
-  // New state for conversion logic
-  const [isConversionDay, setIsConversionDay] = useState(false);
-  const [isConvertingPoints, setIsConvertingPoints] = useState(false);
-
-  // New effect to check the date
-  useEffect(() => {
-    const today = new Date();
-    const dayOfMonth = today.getDate();
-    if (dayOfMonth === 4 || dayOfMonth === 17) {
-        setIsConversionDay(true);
-    }
-  }, []);
 
   const getTransactionTypeIcon = (type: WalletTransaction['type']) => {
     const iconClass = "w-6 h-6 shrink-0";
@@ -138,52 +126,6 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
     }
   };
   
-  const pointsToCurrencyRate = settings.pointsToCurrencyRate || 0;
-  const currencyPerRate = settings.currencyPerRate || 0;
-  const userPoints = user.watchAndEarnPoints || 0;
-
-  const canConvert = isConversionDay && userPoints >= pointsToCurrencyRate;
-
-  const handleConvertPoints = async () => {
-    if (!canConvert || !firebaseUser) return;
-    if (isConvertingPoints) return;
-    if (pointsToCurrencyRate <= 0) {
-      toast({ title: "Conversion Error", description: "Conversion rate not set correctly by admin.", variant: "destructive" });
-      return;
-    }
-
-    setIsConvertingPoints(true);
-    const numberOfConversions = Math.floor(userPoints / pointsToCurrencyRate);
-    const pointsToDeduct = numberOfConversions * pointsToCurrencyRate;
-    const amountToCredit = numberOfConversions * currencyPerRate;
-
-    try {
-      if (!database) throw new Error("Firebase not initialized.");
-
-      const userRef = ref(database, `users/${firebaseUser.uid}`);
-      await runTransaction(userRef, (currentUserData) => {
-        if (currentUserData) {
-          currentUserData.wallet = (currentUserData.wallet || 0) + amountToCredit;
-          currentUserData.watchAndEarnPoints = (currentUserData.watchAndEarnPoints || 0) - pointsToDeduct;
-        }
-        return currentUserData;
-      });
-      
-      const newTx: Omit<WalletTransaction, 'id'> = {
-        type: 'watch_earn_conversion', amount: amountToCredit, status: 'completed',
-        date: new Date().toISOString(), description: `Converted ${pointsToDeduct} points`,
-      };
-      await push(ref(database, `walletTransactions/${firebaseUser.uid}`), newTx);
-
-      toast({ title: "Conversion Successful!", description: `You converted ${pointsToDeduct} points to Rs ${amountToCredit.toFixed(2)}.`, className: "bg-green-500/20" });
-      onRefresh();
-    } catch (error: any) {
-      console.error("Error converting points:", error);
-      toast({ title: "Conversion Failed", description: error.message, variant: "destructive" });
-    } finally {
-      setIsConvertingPoints(false);
-    }
-  };
 
   const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
   const rechargeMessage = `Aur apna Arena Ace wallet. My User ID is: ${user.id || 'N/A'}`;
@@ -244,55 +186,25 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
       </GlassCard>
 
       <GlassCard className="p-6 md:p-8 shadow-xl">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-            <div className="space-y-4 text-center md:text-left">
-                 <h3 className="text-2xl font-semibold text-foreground flex items-center justify-center sm:justify-start">
-                    <GiftIcon className="mr-3 h-7 w-7 text-accent" /> Redeem Gift Code
-                </h3>
-                <p className="text-sm text-muted-foreground">
-                    Enter your gift code below to instantly add funds to your wallet.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 items-center">
-                    <div className="relative flex-grow w-full">
-                        <Ticket className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                        <Input id="redeemCodeInput" placeholder="Enter code" className="pl-10 pr-4 py-3 bg-input/50" value={redeemCodeInput} onChange={(e) => setRedeemCodeInput(e.target.value.toUpperCase())} disabled={isRedeeming} />
-                    </div>
-                    <Button className="neon-accent-bg w-full sm:w-auto" onClick={handleRedeemCode} disabled={isRedeeming || !redeemCodeInput}>
-                        {isRedeeming ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Redeem'}
-                    </Button>
+        <div className="space-y-4 text-center md:text-left">
+             <h3 className="text-2xl font-semibold text-foreground flex items-center justify-center sm:justify-start">
+                <GiftIcon className="mr-3 h-7 w-7 text-accent" /> Redeem Gift Code
+            </h3>
+            <p className="text-sm text-muted-foreground">
+                Enter your gift code below to instantly add funds to your wallet.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 items-center">
+                <div className="relative flex-grow w-full">
+                    <Ticket className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input id="redeemCodeInput" placeholder="Enter code" className="pl-10 pr-4 py-3 bg-input/50" value={redeemCodeInput} onChange={(e) => setRedeemCodeInput(e.target.value.toUpperCase())} disabled={isRedeeming} />
                 </div>
-            </div>
-            
-            <Separator orientation="vertical" className="hidden md:block h-auto" />
-            
-            <div className="space-y-4 text-center md:text-left">
-                <h3 className="text-2xl font-semibold text-foreground flex items-center justify-center sm:justify-start">
-                    <Zap className="mr-3 h-7 w-7 text-yellow-400" /> Click &amp; Earn Points
-                </h3>
-                <div className="text-5xl font-bold text-yellow-400">{user.watchAndEarnPoints || 0}</div>
-                <p className="text-sm text-muted-foreground">
-                    Current Rate: {pointsToCurrencyRate || 'N/A'} points = <RupeeIcon className="inline h-3.5" /> {currencyPerRate || 'N/A'}
-                </p>
-                
-                {canConvert ? (
-                    <Button onClick={handleConvertPoints} disabled={isConvertingPoints} className="w-full">
-                        {isConvertingPoints ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null}
-                        Convert to Wallet
-                    </Button>
-                ) : (
-                    <Alert variant="default" className="bg-primary/10 border-primary/30 text-left">
-                        <Info className="h-4 w-4 !text-primary" />
-                        <AlertTitle className="!text-primary text-sm">Conversion Info</AlertTitle>
-                        <AlertDescription className="!text-primary/80 text-xs">
-                           Conversion is available on the 4th and 17th of each month.
-                           You need at least {pointsToCurrencyRate || 'N/A'} points to convert.
-                        </AlertDescription>
-                    </Alert>
-                )}
+                <Button className="neon-accent-bg w-full sm:w-auto" onClick={handleRedeemCode} disabled={isRedeeming || !redeemCodeInput}>
+                    {isRedeeming ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Redeem'}
+                </Button>
             </div>
         </div>
       </GlassCard>
-
+      
       <GlassCard className="p-0 shadow-xl">
         <div className="p-6 border-b border-border/30 flex justify-between items-center">
           <div>

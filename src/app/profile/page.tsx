@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { User as AppUserType, GlobalSettings } from '@/types';
-import { Edit3, Save, X, AlertTriangle, LogIn, CreditCard, Loader2, KeyRound, Copy, Share2, Link as LinkIcon, Facebook, Instagram, Youtube, MessageSquare, Mail, Gift, UserCircle, Globe, Shield, LogOut as LogOutIcon } from 'lucide-react';
+import { Edit3, Save, X, AlertTriangle, LogIn, CreditCard, Loader2, KeyRound, Copy, Share2, Link as LinkIcon, Facebook, Instagram, Youtube, MessageSquare, Mail, Gift, UserCircle, Globe, Shield, LogOut as LogOutIcon, Bell } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -28,10 +28,11 @@ import {
 } from "@/components/ui/dialog";
 import type { LucideIcon } from 'lucide-react';
 import { mockGlobalSettings, defaultAppUser as defaultUserProfileMock } from '@/lib/mock-data'; 
-import { Alert, AlertTitle } from '@/components/ui/alert';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { adminNavItems } from '@/config/nav';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
+import NotificationBell from '@/components/notifications/NotificationBell';
 
 
 const socialIconMap: Record<string, LucideIcon> = {

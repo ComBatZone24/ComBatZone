@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Save, Settings as SettingsIcon, AlertCircle, Loader2, ArrowLeft, Zap, DollarSign, MessageCircle, FileImage, Cpu, Handshake, ShoppingCart, ListChecks, Wand2, Tv, Link as LinkIconLucide } from 'lucide-react';
+import { Save, Settings as SettingsIcon, AlertCircle, Loader2, ArrowLeft, Zap, DollarSign, MessageCircle, FileImage, Cpu, Handshake, ShoppingCart, ListChecks, Wand2, Tv, Link as LinkIconLucide, MousePointerClick } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,6 +24,7 @@ const initialGeneralSettings: {
   limitRegistrationsEnabled: boolean; 
   maxRegistrations: number | null;
   globalChatEnabled: boolean;
+  clickAndEarnEnabled: boolean; // Added this new setting
   feyorraLogoUrl: string;
   rollerCoinTaskEnabled: boolean;
   feyorraTaskEnabled: boolean;
@@ -40,6 +41,7 @@ const initialGeneralSettings: {
   limitRegistrationsEnabled: false,
   maxRegistrations: 1000,
   globalChatEnabled: true,
+  clickAndEarnEnabled: true, // Default to true
   feyorraLogoUrl: '',
   rollerCoinTaskEnabled: true,
   feyorraTaskEnabled: true,
@@ -89,6 +91,7 @@ export default function AdminGeneralSettingsPage() {
             limitRegistrationsEnabled: fetchedGlobalSettings.limitRegistrationsEnabled ?? initialGeneralSettings.limitRegistrationsEnabled,
             maxRegistrations: fetchedGlobalSettings.maxRegistrations ?? initialGeneralSettings.maxRegistrations,
             globalChatEnabled: fetchedGlobalSettings.globalChatEnabled ?? initialGeneralSettings.globalChatEnabled,
+            clickAndEarnEnabled: fetchedGlobalSettings.clickAndEarnEnabled ?? initialGeneralSettings.clickAndEarnEnabled,
             feyorraLogoUrl: fetchedGlobalSettings.feyorraLogoUrl || initialGeneralSettings.feyorraLogoUrl,
             rollerCoinTaskEnabled: fetchedGlobalSettings.rollerCoinTaskEnabled ?? initialGeneralSettings.rollerCoinTaskEnabled,
             feyorraTaskEnabled: fetchedGlobalSettings.feyorraTaskEnabled ?? initialGeneralSettings.feyorraTaskEnabled,
@@ -173,6 +176,7 @@ export default function AdminGeneralSettingsPage() {
         limitRegistrationsEnabled: generalSettings.limitRegistrationsEnabled,
         maxRegistrations: generalSettings.limitRegistrationsEnabled ? (Number(generalSettings.maxRegistrations) || null) : null,
         globalChatEnabled: generalSettings.globalChatEnabled,
+        clickAndEarnEnabled: generalSettings.clickAndEarnEnabled,
         feyorraLogoUrl: generalSettings.feyorraLogoUrl || null,
         rollerCoinTaskEnabled: generalSettings.rollerCoinTaskEnabled,
         feyorraTaskEnabled: generalSettings.feyorraTaskEnabled,
@@ -277,6 +281,13 @@ export default function AdminGeneralSettingsPage() {
               checked={generalSettings.globalChatEnabled}
               onCheckedChange={(val) => handleInputChange('globalChatEnabled', val)}
               description="Enable or disable the community global chat feature."
+            />
+             <SwitchField 
+              id="clickAndEarnEnabled"
+              label="Click &amp; Earn"
+              checked={generalSettings.clickAndEarnEnabled}
+              onCheckedChange={(val) => handleInputChange('clickAndEarnEnabled', val)}
+              description="Enable or disable the 'Click &amp; Earn' section."
             />
              <SwitchField 
               id="mobileLoadEnabled"
@@ -489,3 +500,4 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, value, onChange, typ
     {description && <p className="text-xs text-muted-foreground px-1">{description}</p>}
   </div>
 );
+
