@@ -14,6 +14,7 @@ import { Loader2, BarChart2, Users, Target, Award, TrendingUp, TrendingDown, Fil
 import RupeeIcon from '@/components/core/rupee-icon';
 import type { Tournament, PlayerResultStats } from '@/types';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 interface CalculationResult {
   joinedUsers: number;
@@ -118,7 +119,7 @@ export default function ProfitCalculatorPage() {
         <Icon className="h-4 w-4 text-muted-foreground" />
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
-      <span className={`font-mono text-lg font-bold ${valueClassName}`}>{value}</span>
+      <span className={cn("font-mono text-lg font-bold", valueClassName)}>{value}</span>
     </div>
   );
 

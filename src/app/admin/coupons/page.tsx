@@ -8,7 +8,7 @@ import * as z from "zod";
 import { database } from "@/lib/firebase/config";
 import { ref, push, onValue, off, update, remove, get } from "firebase/database";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import PageTitle from "@/components/core/page-title";
@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2, Eye, TicketPercent, PlusCircle, Edit3, Trash2, Save } from "lucide-react";
 import type { Coupon, ShopItem, User as AppUserType } from "@/types";
 import { format, parseISO } from "date-fns";
@@ -28,7 +28,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
+  DialogDescription as DialogDescriptionComponent,
   DialogFooter,
   DialogClose,
   DialogTrigger,
@@ -300,7 +300,7 @@ export default function CouponManagementPage() {
         {form.watch('appliesTo') === 'per_item' && (
           <FormField control={form.control} name="applicableItemIds" render={() => (
             <FormItem>
-              <FormLabel>Applicable Products</FormLabel><FormDescription>Select the products this coupon will apply to.</FormDescription>
+              <FormLabel>Applicable Products</FormLabel><FormMessage />
               <ScrollArea className="h-52 rounded-md border p-4">
                 {isLoadingItems ? <Loader2 className="animate-spin" /> :
                   shopItems.length === 0 ? <p className='text-sm text-muted-foreground'>No shop items found to select.</p> :
@@ -318,7 +318,7 @@ export default function CouponManagementPage() {
                       </FormItem>
                     )} />
                   ))}
-              </ScrollArea><FormMessage />
+              </ScrollArea>
             </FormItem>
           )} />
         )}
@@ -337,60 +337,59 @@ export default function CouponManagementPage() {
   );
 
   return (
-    <>
-      <div className="flex h-full flex-col space-y-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <PageTitle title="Coupon Management" subtitle="Create and manage discount codes for your shop."/>
-          <Button onClick={openCreateDialog} className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Add New Coupon</Button>
-        </div>
-        <GlassCard className="p-0 flex flex-1 flex-col">
-          <CardHeader>
-            <CardTitle>Existing Coupons</CardTitle>
-          </CardHeader>
-          <CardContent className="flex-1 flex flex-col">
-            {loading ? <div className="flex-1 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></div> :
-              <div className="relative flex-1">
-                 <ScrollArea className="absolute inset-0">
-                  <Table className="min-w-[800px]">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Value</TableHead>
-                        <TableHead>Usage</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-center">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {coupons.map(coupon => (
-                        <TableRow key={coupon.id}>
-                          <TableCell className="font-semibold">{coupon.code}</TableCell>
-                          <TableCell>{coupon.discountType}</TableCell>
-                          <TableCell>{coupon.discountType === 'percentage' ? `${coupon.discountValue}%` : `Rs ${coupon.discountValue}`}</TableCell>
-                          <TableCell>{coupon.usedCount || 0}/{coupon.usageLimit}</TableCell>
-                          <TableCell>
-                            <Badge variant={coupon.isActive ? "default" : "secondary"}>{coupon.isActive ? "Active" : "Inactive"}</Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewClaims(coupon)}><Eye className="h-4 w-4 text-blue-400"/></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(coupon)}><Edit3 className="h-4 w-4 text-yellow-400"/></Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setCouponToDelete(coupon); setIsDeleteDialogOpen(true); }}><Trash2 className="h-4 w-4 text-red-400"/></Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              </div>
-            }
-          </CardContent>
-        </GlassCard>
+    <div className="flex h-full flex-col space-y-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <PageTitle title="Coupon Management" subtitle="Create and manage discount codes for your shop."/>
+        <Button onClick={openCreateDialog} className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" /> Add New Coupon</Button>
       </div>
+      <GlassCard className="p-0 flex flex-1 flex-col">
+        <CardHeader>
+          <CardTitle>Existing Coupons</CardTitle>
+          <CardDescription>View all currently available coupons in the system.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col">
+          {loading ? <div className="flex-1 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin mx-auto"/></div> :
+            <div className="relative flex-1">
+               <ScrollArea className="absolute inset-0">
+                <Table className="min-w-[800px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Value</TableHead>
+                      <TableHead>Usage</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {coupons.map(coupon => (
+                      <TableRow key={coupon.id}>
+                        <TableCell className="font-semibold">{coupon.code}</TableCell>
+                        <TableCell>{coupon.discountType}</TableCell>
+                        <TableCell>{coupon.discountType === 'percentage' ? `${coupon.discountValue}%` : `Rs ${coupon.discountValue}`}</TableCell>
+                        <TableCell>{coupon.usedCount || 0}/{coupon.usageLimit}</TableCell>
+                        <TableCell>
+                          <Badge variant={coupon.isActive ? "default" : "secondary"}>{coupon.isActive ? "Active" : "Inactive"}</Badge>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleViewClaims(coupon)}><Eye className="h-4 w-4 text-blue-400"/></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(coupon)}><Edit3 className="h-4 w-4 text-yellow-400"/></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setCouponToDelete(coupon); setIsDeleteDialogOpen(true); }}><Trash2 className="h-4 w-4 text-red-400"/></Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          }
+        </CardContent>
+      </GlassCard>
 
       <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
         <DialogContent className="glass-card sm:max-w-lg">
-          <DialogHeader><DialogTitle>{editingCoupon ? "Edit Coupon" : "Add New Coupon"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingCoupon ? "Edit Coupon" : "Add New Coupon"}</DialogTitle><DialogDescriptionComponent>Fill in the details for your new discount coupon.</DialogDescriptionComponent></DialogHeader>
           <CouponForm isEditMode={!!editingCoupon} />
         </DialogContent>
       </Dialog>
@@ -412,7 +411,7 @@ export default function CouponManagementPage() {
         <DialogContent className="glass-card sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Claims for "{viewingClaimsForCoupon?.code}"</DialogTitle>
-            <DialogDescription>Users who have used this coupon.</DialogDescription>
+            <DialogDescriptionComponent>Users who have used this coupon.</DialogDescriptionComponent>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh] mt-4 pr-2">
             {isLoadingClaims ? (
@@ -440,6 +439,6 @@ export default function CouponManagementPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

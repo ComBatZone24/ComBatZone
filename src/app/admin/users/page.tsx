@@ -375,6 +375,7 @@ export default function AdminUsersPage() {
                         <SelectContent className="glass-card">
                             <SelectItem value="all">All Roles</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="delegate">Delegate</SelectItem>
                             <SelectItem value="user">User</SelectItem>
                         </SelectContent>
                     </Select>
@@ -665,5 +666,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-
-    

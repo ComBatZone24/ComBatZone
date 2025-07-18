@@ -1,9 +1,12 @@
+
 "use client";
 
-import { AlertTriangle, Cpu, Wand2 } from 'lucide-react';
+import { AlertTriangle, Cpu, Wand2, Gamepad2 } from 'lucide-react';
 import AppLogo from '@/components/core/AppLogo';
 import GlassCard from '@/components/core/glass-card';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
 const maintenanceMessages = [
   "The Arena is being polished for your next battle. We'll be back shortly!",
@@ -37,6 +40,12 @@ const OfflinePage = () => {
             {randomMessage || "The application is currently unavailable. Please try again later."}
           </p>
         </div>
+         <Button asChild className="w-full neon-accent-bg">
+            <Link href="/tap-game">
+                <Gamepad2 className="mr-2 h-5 w-5" />
+                Play a Game While You Wait
+            </Link>
+        </Button>
       </GlassCard>
       <p className="mt-8 text-center text-sm text-muted-foreground">
         &copy; {new Date().getFullYear()} Arena Ace. All rights reserved.

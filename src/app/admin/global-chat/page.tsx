@@ -10,7 +10,7 @@ import type { ChatMessage } from '@/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Send, Loader2, Trash2, Settings } from 'lucide-react';
+import { Send, Loader2, Trash2, Settings, MessageSquare } from 'lucide-react';
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Badge } from '@/components/ui/badge';
@@ -81,21 +81,24 @@ export default function AdminGlobalChatPage() {
     };
     
     return (
-        <div className="pt-8 flex flex-col h-[calc(100vh-10rem)] max-w-4xl mx-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <PageTitle title="Global Chat Moderation" subtitle="View and manage the community chat." />
+        <div className="flex flex-col h-[calc(100vh-8rem)]">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                <PageTitle title="Global Chat Moderation" subtitle="View and manage the community chat."/>
                  <Button variant="outline" asChild>
                     <Link href="/admin/settings/general">
-                        <Settings className="mr-2 h-4 w-4" /> Enable/Disable Chat
+                        <Settings className="mr-2 h-4 w-4" /> Chat Settings
                     </Link>
                 </Button>
             </div>
-            <GlassCard className="flex-1 flex flex-col p-0 overflow-hidden mt-6">
+            <GlassCard className="flex-1 flex flex-col p-0 overflow-hidden">
                 <div className="flex-1 p-4 overflow-y-auto space-y-4">
                      {isLoading ? (
                         <div className="flex justify-center items-center h-full"><Loader2 className="animate-spin h-8 w-8 text-accent"/></div>
                      ) : messages.length === 0 ? (
-                        <div className="flex justify-center items-center h-full text-muted-foreground">No messages yet.</div>
+                        <div className="flex flex-col justify-center items-center h-full text-muted-foreground p-10 text-center">
+                            <MessageSquare className="h-16 w-16 text-muted-foreground/50 mb-4"/>
+                            No messages yet.
+                        </div>
                      ) : (
                         messages.map(msg => (
                             <div key={msg.id} className="flex items-start gap-3 group">

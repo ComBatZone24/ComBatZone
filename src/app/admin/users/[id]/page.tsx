@@ -1,3 +1,4 @@
+
 "use client";
 import React from 'react';
 import { useEffect, useState, useCallback } from 'react';
@@ -70,8 +71,13 @@ export default function AdminViewUserDetailsPage() {
       }
     } catch (err: any) {
       console.error("Error fetching user details for admin view:", err);
-      setFetchError(err.message || "Could not load user data.");
-      toast({ title: "Fetch Error", description: err.message, variant: "destructive" });
+      if (String(err.message).toUpperCase().includes("PERMISSION_DENIED")) {
+        setTransactions([]);
+        toast({ title: "Permissions Issue", description: "Could not load transaction history due to database rules.", variant: "destructive" });
+      } else {
+        setFetchError(err.message || "Could not load user data.");
+        toast({ title: "Fetch Error", description: err.message, variant: "destructive" });
+      }
     } finally {
       setIsLoading(false);
     }

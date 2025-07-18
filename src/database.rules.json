@@ -1,4 +1,5 @@
 
+
 {
   "rules": {
     ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
@@ -15,7 +16,7 @@
     
     "users": {
       ".write": "auth != null",
-      ".read": "(auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('users').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('demographics').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))) || (auth == null && query.orderByChild == 'referralCode')",
+      ".read": "(auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('users').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('demographics').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))) || (auth == null && query.orderByChild == 'referralCode')",
       ".indexOn": ["username", "role", "referralCode", "createdAt", "email", "gameUid", "gameName", "isOnline"],
       "$uid": {
         ".read": "auth != null",
@@ -52,10 +53,10 @@
 
     "walletTransactions": {
       ".write": "auth != null",
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('transactions').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))",
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('transactions').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))",
       "$uid": {
         ".indexOn": ["date", "status", "requestId"],
-        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true)))"
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true)))"
       }
     },
 
@@ -79,7 +80,7 @@
       ".indexOn": ["sellerId", "status"],
       "$orderId": {
         ".write": "auth != null && ( (!data.exists() && newData.child('sellerId').val() === auth.uid) || (data.exists() && ( (data.child('sellerId').val() === auth.uid && !newData.exists()) || (data.child('status').val() === 'active' && newData.child('status').val() === 'completed' && newData.child('buyerId').val() === auth.uid) )) )",
-        ".validate": "newData.hasChildren(['sellerId', 'sellerUsername', 'tokenAmount', 'pricePerToken', 'status', 'createdAt']) && ( (!data.exists() && root.child('users').child(newData.child('sellerId').val()).child('tokenWallet').val() >= newData.child('tokenAmount').val()) || (data.exists() && (newData.child('status').val() !== 'completed' || newData.hasChildren(['buyerId', 'buyerUsername', 'completedAt']))) )"
+        ".validate": "newData.hasChildren(['sellerId', 'sellerUsername', 'tokenAmount', 'pricePerToken', 'status', 'createdAt']) && ( (!data.exists() && root.child('users').child(newData.child('sellerId').val()).child('tokenWallet').exists() && root.child('users').child(newData.child('sellerId').val()).child('tokenWallet').val() >= newData.child('tokenAmount').val()) || (data.exists() && (newData.child('status').val() !== 'completed' || newData.hasChildren(['buyerId', 'buyerUsername', 'completedAt']))) )"
       }
     },
     
@@ -90,25 +91,25 @@
 
     "withdrawRequests": {
       ".indexOn": ["status", "uid", "requestDate"],
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true)))",
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true)))",
       "$requestId": {
-        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true))",
-        ".write": "auth != null && ((newData.child('uid').val() === auth.uid && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true))"
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true))",
+        ".write": "auth != null && ((newData.child('uid').val() === auth.uid && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true))"
       }
     },
     
     "mobileLoadRequests": {
       ".indexOn": ["status", "uid", "requestDate"],
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('mobileLoadRequests').val() === true))",
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('mobileLoadRequests').val() === true))",
       "$requestId": {
-        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('mobileLoadRequests').val() === true))",
-        ".write": "auth != null && root.child('globalSettings/mobileLoadEnabled').val() === true && ((newData.child('uid').val() === auth.uid && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('mobileLoadRequests').val() === true))"
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('mobileLoadRequests').val() === true))",
+        ".write": "auth != null && root.child('globalSettings/mobileLoadEnabled').val() === true && ((newData.child('uid').val() === auth.uid && !data.exists()) || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('mobileLoadRequests').val() === true))"
       }
     },
 
     "tournaments": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('tournaments').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('tournamentAnalysis').val() === true)))",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('tournaments').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('tournamentAnalysis').val() === true)))",
       ".indexOn": ["status", "startTime", "createdBy"],
       "$tournamentId": {
         ".read": true,
@@ -138,12 +139,12 @@
     "coupons": {
       ".indexOn": ["code", "isActive"],
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('coupons').val() === true))"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('coupons').val() === true))"
     },
 
     "polls": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('polls').val() === true))",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('polls').val() === true))",
       "$pollId": {
         "voters": {
           "$uid": {
@@ -162,12 +163,12 @@
 
     "promoPosts": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('polls').val() === true))"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('polls').val() === true))"
     },
     
     "scrollingBanners": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))"
     },
 
     "clickAndEarnLinks": {
@@ -187,32 +188,32 @@
 
     "leaderboards": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('leaderboards').val() === true))",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('leaderboards').val() === true))",
       ".indexOn": ["earnings", "username", "kills", "wins"]
     },
 
     "globalSettings": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))"
     },
 
     "shopItems": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shop').val() === true))",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shop').val() === true))",
       ".indexOn": ["active", "category"]
     },
 
     "settings": {
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))",
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))"
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('settings').val() === true))"
     },
 
     "tournament_results": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('results').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('tournamentAnalysis').val() === true))",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('results').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('tournamentAnalysis').val() === true)))",
       "$tournamentId": { 
         ".read": true,
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('results').val() === true))"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('results').val() === true))"
       }
     },
 
@@ -224,15 +225,15 @@
       }
     },
     "adminData": {
-        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true))",
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true))",
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin')"
     },
 
     "purchaseRequests": {
       ".indexOn": ["userId", "status", "orderTimestamp"],
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('role').val() === 'delegate' && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shopOrders').val() === true))",
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shopOrders').val() === true))",
       "$orderId": {
-        ".write": "auth != null && (newData.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shopOrders').val() === true))",
+        ".write": "auth != null && (newData.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shopOrders').val() === true))",
         ".read": "auth != null && (data.child('userId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
       }
     },
@@ -240,7 +241,7 @@
     "notifications": {
       "$uid": {
         ".read": "auth != null && auth.uid === $uid",
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || auth.uid === $uid || (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('messages').val() === true))"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || auth.uid === $uid || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('messages').val() === true))"
       }
     },
 
@@ -254,3 +255,4 @@
     }
   }
 }
+    

@@ -1,3 +1,4 @@
+
 import { NextResponse } from 'next/server';
 import { database } from '@/lib/firebase/config';
 import { ref, get } from 'firebase/database';
@@ -5,7 +6,7 @@ import type { GlobalSettings } from '@/types';
 
 // Helper function to process the logo URL from settings
 function getPwaIconUrl(initialUrl?: string | null): string {
-  const placeholderUrl = 'https://placehold.co/512x512.png?text=A';
+  const placeholderUrl = 'https://placehold.co/512x512.png?text=C'; // Updated placeholder text
   if (!initialUrl || typeof initialUrl !== 'string' || initialUrl.trim() === '') {
     return placeholderUrl;
   }
@@ -40,13 +41,14 @@ export async function GET() {
     }
   }
 
-  const appName = settings.appName || 'Arena Ace';
+  const appName = settings.appName || 'ComBatZone';
+  const appDescription = `Join ${appName} for eSports tournaments in Pakistan, win prizes, and earn money.`;
   const pwaIcon = getPwaIconUrl(settings.appLogoUrl);
 
   const manifest = {
     name: appName,
     short_name: appName,
-    description: `Join ${appName} for eSports tournaments and more.`,
+    description: appDescription,
     icons: [
       {
         src: pwaIcon,
@@ -63,8 +65,8 @@ export async function GET() {
     ],
     start_url: '/',
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#4B0082', // Matching the theme-color from layout.tsx
+    background_color: '#0e1117', // Match --background hsl(210, 15%, 10%)
+    theme_color: '#5b21b6', // Match --accent hsl(274, 100%, 55%) as a close hex
   };
 
   return new NextResponse(JSON.stringify(manifest), {

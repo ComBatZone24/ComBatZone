@@ -8,7 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { NavItem } from '@/config/nav';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, SquareDashedKanban } from 'lucide-react';
 import { useAd } from '@/context/AdContext';
 import { useSettings } from '@/context/SettingsContext';
 import { Button } from '../ui/button';
@@ -55,6 +55,7 @@ const BottomNavigationBar: React.FC<BottomNavigationBarProps> = ({ items, user, 
       if (item.href === '/dragon-tiger') return dragonTigerIsEnabled;
       if (item.href === '/global-chat') return chatIsEnabled;
       if (item.href === '/shop') return shopIsEnabled;
+      if (item.href === '/tap-game') return true; // Always show the tap game
       return true;
     });
   }, [items, user, pathname, settings, isLoadingSettings]);

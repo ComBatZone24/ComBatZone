@@ -5,26 +5,23 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, get, off, update, runTransaction, serverTimestamp, push, set } from 'firebase/database';
+import { ref, onValue, off } from 'firebase/database';
 import type { GlobalSettings, ClickAndEarnLink, YouTubePromotionSettings, User, WalletTransaction, ClickMilestone } from '@/types';
 
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Coins, ExternalLink, Handshake, Gift, Youtube, Video, Loader2, Cpu, ListChecks, Wand2, Tv, Award, HelpCircle, Sparkles, TrendingUp, Info, Clock, Check, AlertTriangle } from 'lucide-react';
+import { Coins, ExternalLink, Gift, Youtube, Video, Loader2, ListChecks, Wand2, Tv, Info, HelpCircle } from 'lucide-react';
 import Image from 'next/image';
 
 import { trackTaskClick } from './actions';
 import YoutubePromotionTask from '@/components/youtube/YoutubePromotionTask';
 import { getYoutubeVideoId, getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Separator } from '@/components/ui/separator';
-import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { getClickAndEarnExplanation } from '@/ai/flows/mining-explanation-flow';
-import RupeeIcon from '@/components/core/rupee-icon';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
-import { format } from 'date-fns';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import ClickAndEarnComponent from '@/components/youtube/ClickAndEarnList';
 
 
@@ -128,14 +125,16 @@ export default function EarnTasksPage() {
     }, []);
 
     const handleGetExplanation = async () => {
-        if (!globalSettings.pkrPerPoint || !globalSettings.clickMilestones) return;
+        const milestone = globalSettings.clickMilestones?.find(m => m.clicks === 98);
+        if (!globalSettings.pkrPerPoint || !milestone) return;
+        
         setIsExplanationOpen(true);
         setIsLoadingExplanation(true);
         try {
             const result = await getClickAndEarnExplanation({
                 pkrPerPoint: globalSettings.pkrPerPoint,
                 dailyTarget: 98,
-                dailyReward: globalSettings.clickMilestones.find(m => m.clicks === 98)?.points || 0,
+                dailyReward: milestone.points,
             });
             setExplanation(result.explanation);
         } catch (error) {
@@ -220,8 +219,8 @@ export default function EarnTasksPage() {
             <Dialog open={isExplanationOpen} onOpenChange={setIsExplanationOpen}>
                 <DialogContent className="glass-card sm:max-w-lg">
                     <DialogHeader>
-                         <DialogTitle className="flex items-center gap-2"><Sparkles className="text-accent"/> AI Explanation</DialogTitle>
-                         <DialogDescription>How the Click &amp; Earn feature works.</DialogDescription>
+                         <DialogTitle className="flex items-center gap-2"><Info className="text-accent"/> How It Works</DialogTitle>
+                         <DialogDescription>Your guide to the Click &amp; Earn feature.</DialogDescription>
                     </DialogHeader>
                     <div className="prose prose-invert prose-sm text-foreground max-h-[60vh] overflow-y-auto py-4">
                         {isLoadingExplanation ? (

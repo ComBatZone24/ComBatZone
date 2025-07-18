@@ -15,6 +15,9 @@ import RupeeIcon from '../core/rupee-icon';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import GlassCard from '../core/glass-card';
 import { Separator } from '../ui/separator';
+import { trackTaskClick } from '@/app/earn-tasks/actions'; // Import the new server action
+import { getClickAndEarnExplanation } from '@/ai/flows/mining-explanation-flow';
+import { HelpCircle } from 'lucide-react';
 
 interface ClickAndEarnComponentProps {
   user: User;
@@ -52,6 +55,10 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
     const [isConverting, setIsConverting] = useState(false);
     
     const [isConversionDay, setIsConversionDay] = useState(false);
+
+    const [isExplanationOpen, setIsExplanationOpen] = useState(false);
+    const [explanation, setExplanation] = useState<string>('');
+    const [isLoadingExplanation, setIsLoadingExplanation] = useState(false);
 
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const adWindowOpenedAt = useRef<number>(0);
@@ -173,15 +180,15 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
             const updates: Record<string, any> = {};
             updates[`users/${user.id}/userClickAndEarnClaims/${link.id}`] = now;
             updates[`users/${user.id}/dailyClickAndEarn/clickCount`] = newClickCount;
-
             if (targetCompleted && !dailyData.isTargetCompleted) {
                 updates[`users/${user.id}/dailyClickAndEarn/isTargetCompleted`] = true;
             }
-            
             if (rewardAmount > 0) {
                 updates[`users/${user.id}/watchAndEarnPoints`] = (user.watchAndEarnPoints || 0) + rewardAmount;
             }
+            
             await update(ref(database), updates);
+            await trackTaskClick(user.id, 'click_and_earn'); // Call the server action to track click
 
             if (rewardAmount > 0) {
                 handleRewardAndCooldown(rewardAmount);
@@ -267,6 +274,27 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
             toast({ title: "Conversion Failed", description: error.message, variant: "destructive" });
         } finally {
             setIsConverting(false);
+        }
+    };
+
+    const handleGetExplanation = async () => {
+        const milestone = settings.clickMilestones?.find(m => m.clicks === 98);
+        if (!settings.pkrPerPoint || !milestone) return;
+        
+        setIsExplanationOpen(true);
+        setIsLoadingExplanation(true);
+        try {
+            const result = await getClickAndEarnExplanation({
+                pkrPerPoint: settings.pkrPerPoint,
+                dailyTarget: 98,
+                dailyReward: milestone.points,
+            });
+            setExplanation(result.explanation);
+        } catch (error) {
+            console.error(error);
+            setExplanation("Sorry, I couldn't generate an explanation right now. Please try again later.");
+        } finally {
+            setIsLoadingExplanation(false);
         }
     };
     

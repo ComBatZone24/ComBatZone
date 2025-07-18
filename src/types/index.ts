@@ -40,6 +40,12 @@ export interface User {
     isp?: string;
   } | null;
   userClickAndEarnClaims?: Record<string, number>;
+  pendingYoutubeSubmissions?: Record<string, {
+      screenshotUrl: string;
+      status: 'pending' | 'approved_paid' | 'rejected' | 'already_rewarded';
+      submittedAt: any; // serverTimestamp
+      reason?: string;
+  }>;
 }
 
 export interface Tournament {
@@ -421,6 +427,13 @@ export interface GlobalSettings {
   // Task URLs
   feyorraReferralUrl?: string;
   rollerCoinReferralUrl?: string;
+
+  // Contact & Social
+  contactWhatsapp: string[]; // Changed to array
+  contactEmail: string;
+  socialMediaFacebook: string;
+  socialMediaInstagram: string;
+  socialMediaYoutube: string;
 
   // Sub-settings objects
   dailyLoginRewards?: {

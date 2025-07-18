@@ -32,7 +32,7 @@ import Image from 'next/image';
 import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Coins } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow, parseISO } from 'date-fns';
 
 
 interface WalletDisplayProps {
@@ -128,8 +128,42 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   
 
   const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
-  const rechargeMessage = `Aur apna Arena Ace wallet. My User ID is: ${user.id || 'N/A'}`;
-  const rechargeWhatsappUrl = `${settings.contactWhatsapp}?text=${encodeURIComponent(rechargeMessage)}`;
+  
+  const getRechargeUrl = () => {
+    // Calculate user stats
+    const topUpCount = transactions.filter(tx => tx.type === 'topup' && tx.status === 'completed').length;
+    const withdrawalCount = transactions.filter(tx => tx.type === 'withdrawal' && tx.status === 'completed').length;
+    const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
+    
+    // Construct the detailed message
+    const rechargeMessage = `
+Assalamualaikum, Admin!
+
+I would like to recharge my Arena Ace wallet. Here are my details for your reference:
+-----------------------------------
+*User Details:*
+- *Username:* ${user.username || 'N/A'}
+- *User ID:* ${user.id || 'N/A'}
+- *Email:* ${user.email || 'N/A'}
+
+*Account Stats:*
+- *Current Balance:* Rs ${user.wallet.toFixed(2)}
+- *Watch & Earn Points:* ${(user.watchAndEarnPoints || 0).toFixed(4)}
+- *Total Top-ups:* ${topUpCount}
+- *Total Withdrawals:* ${withdrawalCount}
+- *Member Since:* ${timeSinceRegistration}
+-----------------------------------
+
+Please guide me on the recharge process. Thank you!
+    `.trim();
+
+    const links = settings?.contactWhatsapp || [];
+    if (links.length === 0) return '#';
+    const randomLink = links[Math.floor(Math.random() * links.length)];
+    return `${randomLink}?text=${encodeURIComponent(rechargeMessage)}`;
+  };
+  
+  const canRecharge = Array.isArray(settings?.contactWhatsapp) && settings.contactWhatsapp.length > 0;
 
   return (
     <div className="space-y-8">
@@ -141,10 +175,10 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" asChild disabled={!settings.contactWhatsapp}>
-            <a href={settings.contactWhatsapp ? rechargeWhatsappUrl : '#'} target="_blank" rel="noopener noreferrer">
+          <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" asChild disabled={!canRecharge}>
+            <a href={canRecharge ? getRechargeUrl() : '#'} target="_blank" rel="noopener noreferrer">
               <PlusCircle className="mr-2 h-5 w-5" /> Recharge Your Digital Vault!
-              {!settings.contactWhatsapp && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
+              {!canRecharge && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
             </a>
           </Button>
 

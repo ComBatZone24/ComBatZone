@@ -41,6 +41,7 @@ import {
   MousePointerClick,
   Upload,
   ArrowUpCircle,
+  SquareDashedKanban,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 

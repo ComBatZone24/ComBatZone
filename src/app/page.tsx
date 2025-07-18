@@ -182,7 +182,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {duelsCardSettings?.enabled && (
                   <Link href="/duels" className="w-full h-full flex">
-                  <GlassCard interactive className="flex flex-col overflow-hidden group border border-border/30 hover:shadow-accent/20 hover:border-accent/50 transition-all duration-300 w-full">
+                  <GlassCard interactive className="flex flex-col overflow-hidden group border border-border/30 w-full">
                       <div className="relative w-full aspect-[4/3] overflow-hidden">
                       <Image
                           src={getDisplayableBannerUrl(duelsCardSettings.imageUrl, duelsCardSettings.title)}
@@ -191,6 +191,7 @@ export default function HomePage() {
                           style={{ objectFit: 'cover' }}
                           className="transition-transform duration-500 ease-in-out group-hover:scale-110"
                           data-ai-hint="cyberpunk duel arena"
+                          priority
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                       </div>
@@ -211,7 +212,7 @@ export default function HomePage() {
 
               {spinWheelSettings?.enabled && (
                   <Link href="/spin-wheel" className="w-full h-full flex">
-                  <GlassCard interactive className="flex flex-col overflow-hidden group border border-border/30 hover:shadow-accent/20 hover:border-accent/50 transition-all duration-300 w-full">
+                  <GlassCard interactive className="flex flex-col overflow-hidden group border border-border/30 w-full">
                       <div className="relative w-full aspect-[4/3] overflow-hidden">
                       <Image
                           src={getDisplayableBannerUrl(spinWheelSettings.imageUrl, spinWheelSettings.title)}
@@ -220,6 +221,7 @@ export default function HomePage() {
                           style={{ objectFit: 'cover' }}
                           className="transition-transform duration-500 ease-in-out group-hover:scale-110"
                           data-ai-hint="colorful wheel casino"
+                          priority
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                       </div>
@@ -240,7 +242,7 @@ export default function HomePage() {
 
               {dragonTigerSettings?.enabled && (
                   <Link href="/dragon-tiger" className="w-full h-full flex">
-                  <GlassCard interactive className="flex flex-col overflow-hidden group border border-border/30 hover:shadow-accent/20 hover:border-accent/50 transition-all duration-300 w-full">
+                  <GlassCard interactive className="flex flex-col overflow-hidden group border border-border/30 w-full">
                       <div className="relative w-full aspect-[4/3] overflow-hidden">
                       <Image
                           src={getDisplayableBannerUrl(dragonTigerSettings.imageUrl, dragonTigerSettings.title)}
@@ -249,6 +251,7 @@ export default function HomePage() {
                           style={{ objectFit: 'cover' }}
                           className="transition-transform duration-500 ease-in-out group-hover:scale-110"
                           data-ai-hint="dragon tiger playing cards"
+                          priority
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
                       </div>

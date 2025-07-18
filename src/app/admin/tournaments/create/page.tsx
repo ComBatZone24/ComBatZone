@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Gamepad2, Loader2, Save, BellRing } from 'lucide-react'; 
+import { Gamepad2, Loader2, Save, BellRing, ArrowLeft, ToggleRight } from 'lucide-react'; 
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Tournament } from '@/types';
@@ -24,6 +24,7 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { generateEventNotification } from '@/ai/flows/generate-event-notification-flow';
 import { sendGlobalNotification } from '../../messages/actions';
+import Link from 'next/link';
 
 const tournamentSchema = z.object({
   name: z.string().min(3, { message: "Tournament name must be at least 3 characters." }),
@@ -232,12 +233,17 @@ export default function CreateTournamentPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Gamepad2 className="h-8 w-8 text-accent" />
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Create New Tournament</h1>
-          <p className="text-muted-foreground">Fill in the details to set up a new tournament.</p>
-        </div>
+      <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Gamepad2 className="h-8 w-8 text-accent" />
+            <div>
+              <h1 className="text-3xl font-bold text-foreground">Create New Tournament</h1>
+              <p className="text-muted-foreground">Fill in the details to set up a new tournament.</p>
+            </div>
+          </div>
+          <Button variant="outline" asChild>
+            <Link href="/admin/tournaments"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Tournaments</Link>
+          </Button>
       </div>
 
       <GlassCard>
@@ -271,7 +277,7 @@ export default function CreateTournamentPage() {
                 <CustomFormField name="resultsProcessingTimeDate" type="date" label="Auto-Post Date" />
                 <CustomFormField name="resultsProcessingTimeTime" type="time" label="Auto-Post Time" />
             </div>
-            <Controller name="autoPostResults" control={form.control} render={({ field }) => ( <FormItem field={field} label=""><div className="flex items-center space-x-2 pt-2"><Switch id="autoPostResultsToggle" checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-accent" /><Label htmlFor="autoPostResultsToggle" className="text-sm font-medium text-foreground cursor-pointer">Enable Auto-Posting of Results</Label></div></FormItem> )}/>
+            <Controller name="autoPostResults" control={form.control} render={({ field }) => ( <FormItem field={field} label=""><div className="flex items-center space-x-2 pt-2"><Switch id="autoPostResultsToggle" checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-accent" /><Label htmlFor="autoPostResultsToggle" className="text-sm font-medium text-foreground cursor-pointer flex items-center gap-2"><ToggleRight className="h-4 w-4"/>Enable Auto-Posting</Label></div></FormItem> )}/>
 
             <Separator className="my-4 bg-border/30" />
             <CustomFormField name="bannerImageUrl" label="Banner Image URL (Optional)" placeholder="https://example.com/banner.jpg" />

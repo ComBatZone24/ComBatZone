@@ -1,16 +1,16 @@
 
 "use client";
 
-import { useState, useCallback, ChangeEvent } from 'react';
+import { useState, useCallback } from 'react';
 import type { YouTubePromotionSettings } from '@/types';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { getDisplayableBannerUrl } from '@/lib/image-helper';
-import { User, Gift, CheckCircle, Upload, Loader2, AlertCircle } from 'lucide-react';
+import { Gift, CheckCircle, Upload, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { getDatabase, ref as dbRef, set, serverTimestamp, push, get, runTransaction } from "firebase/database";
+import { getDatabase, ref as dbRef, set, serverTimestamp, get, runTransaction, push } from "firebase/database";
 import { verifyYoutubeSubscription } from '@/ai/flows/verify-youtube-subscription-flow';
 
 interface YoutubePromotionTaskProps {
@@ -18,12 +18,12 @@ interface YoutubePromotionTaskProps {
 }
 
 export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskProps) {
-    const { user } = useAuth();
+    const { user, refreshUser } = useAuth();
     const { toast } = useToast();
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'verifying' | 'success' | 'failed'>('idle');
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
     const [verificationResult, setVerificationResult] = useState<string | null>(null);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -46,13 +46,14 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
         multiple: false
     });
 
-    const handleUploadAndVerify = async () => {
+    const handleVerify = async () => {
         if (!file || !user) {
-            toast({ title: "Error", description: "Please select a screenshot file and ensure you are logged in.", variant: "destructive" });
+            toast({ title: "Error", description: "Please select a screenshot and ensure you are logged in.", variant: "destructive" });
             return;
         }
         setIsProcessing(true);
-        setUploadStatus('uploading');
+        setUploadStatus('verifying');
+        setVerificationResult(null);
 
         try {
             const base64Data = await new Promise<string>((resolve, reject) => {
@@ -61,17 +62,17 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
                 reader.onload = () => resolve(reader.result as string);
                 reader.onerror = (error) => reject(error);
             });
-            
-            setUploadStatus('verifying');
+
             const aiResult = await verifyYoutubeSubscription({
                 screenshotDataUri: base64Data,
                 expectedChannelName: settings.youtubeChannelName,
             });
-            
+
             const db = getDatabase();
+            const userRef = dbRef(db, `users/${user.id}`);
+            const submissionRef = push(dbRef(db, `users/${user.id}/pendingYoutubeSubmissions`));
 
             if (aiResult.verificationPassed) {
-                const userRef = dbRef(db, `users/${user.id}`);
                 const userSnap = await get(userRef);
                 const userData = userSnap.val();
 
@@ -79,6 +80,7 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
                     setVerificationResult("Already Rewarded: You have already received points for this task.");
                     setUploadStatus('failed');
                     toast({ title: "Already Rewarded", description: "You can only complete this task once.", variant: "destructive" });
+                    await set(submissionRef, { status: 'already_rewarded', submittedAt: serverTimestamp(), reason: 'User already claimed reward.' });
                 } else {
                     const pointsToAward = settings.pointsForSubscription || 0;
                     
@@ -90,36 +92,24 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
                         return currentUserData;
                     });
 
-                    const submissionRef = push(dbRef(db, `users/${user.id}/pendingYoutubeSubmissions`));
-                    await set(submissionRef, {
-                        screenshotUrl: 'placeholder_for_now', // In a real app, this would be the Storage URL
-                        status: 'approved_paid',
-                        submittedAt: serverTimestamp(),
-                        reason: 'AI verification passed.',
-                    });
-
+                    await set(submissionRef, { status: 'approved_paid', submittedAt: serverTimestamp(), reason: `AI verification passed. Awarded ${pointsToAward} points.` });
+                    
                     setVerificationResult(`Verification successful! ${pointsToAward} points awarded.`);
                     setUploadStatus('success');
                     toast({ title: "Verified & Rewarded!", description: `You have been awarded ${pointsToAward} points.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
+                    refreshUser(); // Refresh user data in context to hide the task
                 }
             } else {
                 setVerificationResult(`Verification Failed: ${aiResult.reason}`);
                 setUploadStatus('failed');
                 toast({ title: "Verification Failed", description: aiResult.reason, variant: "destructive" });
-                
-                const submissionRef = push(dbRef(db, `users/${user.id}/pendingYoutubeSubmissions`));
-                await set(submissionRef, {
-                    screenshotUrl: 'placeholder_for_now',
-                    status: 'rejected',
-                    submittedAt: serverTimestamp(),
-                    reason: aiResult.reason,
-                });
+                await set(submissionRef, { status: 'rejected', submittedAt: serverTimestamp(), reason: aiResult.reason });
             }
         } catch (error: any) {
             console.error("Verification error:", error);
             setVerificationResult("An error occurred during verification.");
             setUploadStatus('failed');
-            toast({ title: "Error", description: error.message || "An unexpected error occurred during verification.", variant: "destructive" });
+            toast({ title: "Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
         } finally {
             setIsProcessing(false);
         }
@@ -166,13 +156,12 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
                 </div>
             )}
             
-            <Button onClick={handleUploadAndVerify} disabled={!file || isProcessing} className="w-full">
+            <Button onClick={handleVerify} disabled={!file || isProcessing || uploadStatus === 'success'} className="w-full">
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
-                {uploadStatus === 'idle' && 'Upload & Verify'}
-                {uploadStatus === 'uploading' && 'Uploading...'}
+                {uploadStatus === 'idle' && 'Verify Screenshot'}
                 {uploadStatus === 'verifying' && 'Verifying with AI...'}
                 {uploadStatus === 'success' && 'Verified!'}
-                {uploadStatus === 'failed' && 'Verification Failed'}
+                {uploadStatus === 'failed' && 'Try Again'}
             </Button>
 
             {verificationResult && (

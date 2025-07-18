@@ -7,7 +7,7 @@ import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Link2 as LinkIconLucide, Save, Loader2, ArrowLeft, MessageSquare, Mail, Facebook, Instagram, Youtube, AlertCircle } from 'lucide-react';
+import { Link2 as LinkIconLucide, Save, Loader2, ArrowLeft, MessageSquare, Mail, Facebook, Instagram, Youtube, AlertCircle, PlusCircle, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,9 +15,8 @@ import type { GlobalSettings } from '@/types';
 import { database } from '@/lib/firebase/config';
 import { ref, get, update, serverTimestamp } from 'firebase/database';
 
-// Define the shape of settings specifically for this page
 interface ContactSettings {
-  contactWhatsapp: string;
+  contactWhatsapp: string[]; // Changed to array
   contactEmail: string;
   socialMediaFacebook: string;
   socialMediaInstagram: string;
@@ -25,7 +24,7 @@ interface ContactSettings {
 }
 
 const initialContactSettings: ContactSettings = {
-  contactWhatsapp: '',
+  contactWhatsapp: [''], // Start with one empty string
   contactEmail: '',
   socialMediaFacebook: '',
   socialMediaInstagram: '',
@@ -53,8 +52,13 @@ export default function AdminContactSettingsPage() {
         
         if (snapshot.exists()) {
           const fetchedGlobalSettings = snapshot.val() as Partial<GlobalSettings>;
+          let whatsappLinks = fetchedGlobalSettings.contactWhatsapp || [];
+          if (!Array.isArray(whatsappLinks) || whatsappLinks.length === 0) {
+            whatsappLinks = [''];
+          }
+
           setSettings({
-            contactWhatsapp: fetchedGlobalSettings.contactWhatsapp || initialContactSettings.contactWhatsapp,
+            contactWhatsapp: whatsappLinks,
             contactEmail: fetchedGlobalSettings.contactEmail || initialContactSettings.contactEmail,
             socialMediaFacebook: fetchedGlobalSettings.socialMediaFacebook || initialContactSettings.socialMediaFacebook,
             socialMediaInstagram: fetchedGlobalSettings.socialMediaInstagram || initialContactSettings.socialMediaInstagram,
@@ -79,6 +83,23 @@ export default function AdminContactSettingsPage() {
     const { name, value } = e.target;
     setSettings(prev => ({ ...prev, [name]: value }));
   };
+
+  const handleWhatsappLinkChange = (index: number, value: string) => {
+    const newWhatsappLinks = [...settings.contactWhatsapp];
+    newWhatsappLinks[index] = value;
+    setSettings(prev => ({ ...prev, contactWhatsapp: newWhatsappLinks }));
+  };
+
+  const addWhatsappLink = () => {
+    setSettings(prev => ({ ...prev, contactWhatsapp: [...prev.contactWhatsapp, ''] }));
+  };
+
+  const removeWhatsappLink = (index: number) => {
+    if (settings.contactWhatsapp.length > 1) {
+      const newWhatsappLinks = settings.contactWhatsapp.filter((_, i) => i !== index);
+      setSettings(prev => ({ ...prev, contactWhatsapp: newWhatsappLinks }));
+    }
+  };
   
   const handleSubmitSettings = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -89,13 +110,10 @@ export default function AdminContactSettingsPage() {
     
     setIsLoading(true);
     try {
-      // Construct only the fields relevant to this page for update
       const settingsToUpdate: Partial<GlobalSettings> = {
-        contactWhatsapp: settings.contactWhatsapp,
-        contactEmail: settings.contactEmail,
-        socialMediaFacebook: settings.socialMediaFacebook,
-        socialMediaInstagram: settings.socialMediaInstagram,
-        socialMediaYoutube: settings.socialMediaYoutube,
+        ...settings,
+        // Filter out empty strings from whatsapp links before saving
+        contactWhatsapp: settings.contactWhatsapp.filter(link => link.trim() !== ''),
         updatedAt: serverTimestamp() 
       };
 
@@ -143,17 +161,33 @@ export default function AdminContactSettingsPage() {
           <p className="text-sm text-muted-foreground mb-4">Enter URLs for users to contact or follow you. Leave blank if not applicable.</p>
           <Separator className="mb-6 bg-border/30" />
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InputField 
-              id="contactWhatsapp" 
-              name="contactWhatsapp" 
-              label="WhatsApp Link" 
-              value={settings.contactWhatsapp || ''} 
-              onChange={handleInputChange} 
-              placeholder="e.g., https://wa.me/1234567890" 
-              icon={MessageSquare}
-              description="Full WhatsApp link including https://"
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            <div className="space-y-3">
+              <Label className="text-sm font-medium text-muted-foreground flex items-center">
+                <MessageSquare className="mr-2 h-4 w-4 text-muted-foreground/80" />
+                WhatsApp Links
+              </Label>
+              {settings.contactWhatsapp.map((link, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    type="text"
+                    value={link}
+                    onChange={(e) => handleWhatsappLinkChange(index, e.target.value)}
+                    placeholder="e.g., https://wa.me/1234567890"
+                    className="bg-input/50"
+                  />
+                  {settings.contactWhatsapp.length > 1 && (
+                    <Button type="button" variant="destructive" size="icon" onClick={() => removeWhatsappLink(index)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={addWhatsappLink}>
+                <PlusCircle className="mr-2 h-4 w-4"/> Add Another WhatsApp Link
+              </Button>
+            </div>
+            
             <InputField 
               id="contactEmail" 
               name="contactEmail" 
@@ -196,10 +230,9 @@ export default function AdminContactSettingsPage() {
         
         <Alert variant="default" className="bg-primary/10 border-primary/30">
           <AlertCircle className="h-5 w-5 !text-primary" />
-          <AlertTitle className="!text-primary">Visibility</AlertTitle>
+          <AlertTitle className="!text-primary">Visibility &amp; Randomization</AlertTitle>
           <AlertDescription className="!text-primary/80">
-            These links, if provided, will be visible to users on the homepage and their profile page.
-            Ensure URLs are correct and start with https:// (or mailto: for email).
+            When users click the recharge button, one of the provided WhatsApp links will be chosen randomly. Other links will be visible on the profile page.
           </AlertDescription>
         </Alert>
 
@@ -216,7 +249,7 @@ export default function AdminContactSettingsPage() {
 // Helper component for input fields
 interface InputFieldProps {
   id: string;
-  name: keyof ContactSettings; // Ensure name is a key of ContactSettings
+  name: keyof Omit<ContactSettings, 'contactWhatsapp'>;
   label: string;
   value: string;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -244,4 +277,3 @@ const InputField: React.FC<InputFieldProps> = ({ id, name, label, value, onChang
     {description && <p className="text-xs text-muted-foreground px-1">{description}</p>}
   </div>
 );
-

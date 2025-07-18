@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { database } from '@/lib/firebase/config';
 import { ref, onValue, off, remove } from 'firebase/database';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, History } from 'lucide-react';
 import type { WalletTransaction as Transaction } from '@/types';
 import GlassCard from '@/components/core/glass-card';
 import PageTitle from '@/components/core/page-title';
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import RupeeIcon from '@/components/core/rupee-icon';
+import { format } from 'date-fns';
 
 
 export default function AdminTransactionsPage() {
@@ -94,6 +95,12 @@ export default function AdminTransactionsPage() {
       </div>
 
       <GlassCard className="p-0 flex flex-1 flex-col overflow-hidden">
+        <div className="p-4 border-b border-border/30">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <History className="h-5 w-5 text-accent"/>
+            Transaction Log
+          </h3>
+        </div>
         {isLoading ? (
           <div className="flex-1 flex justify-center items-center">
             <Loader2 className="h-8 w-8 animate-spin text-accent" /><p className="ml-3 text-muted-foreground">Loading transactions...</p>
@@ -101,9 +108,12 @@ export default function AdminTransactionsPage() {
         ) : error ? (
             <div className="p-6 text-center text-destructive">{error}</div>
         ) : transactions.length === 0 ? (
-          <div className="flex-1 flex justify-center items-center text-muted-foreground">No transaction history found.</div>
+          <div className="flex-1 flex justify-center items-center text-muted-foreground p-10 text-center">
+            <History className="h-16 w-16 text-muted-foreground/50 mb-4"/>
+            No transaction history found.
+          </div>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollArea className="flex-1">
             <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow className="border-b-border/50 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
@@ -119,7 +129,7 @@ export default function AdminTransactionsPage() {
                 {transactions.map(tx => (
                   <TableRow key={tx.id} className="border-b-border/20 hover:bg-muted/20">
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(tx.date).toLocaleString()}
+                      {format(new Date(tx.date), 'dd MMM yyyy, hh:mm a')}
                     </TableCell>
                     <TableCell className="font-mono text-xs">{tx.userId}</TableCell>
                     <TableCell className="text-sm capitalize">{(tx.type || '-').replace(/_/g, ' ')}</TableCell>
@@ -147,7 +157,7 @@ export default function AdminTransactionsPage() {
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ScrollArea>
         )}
       </GlassCard>
     </div>
