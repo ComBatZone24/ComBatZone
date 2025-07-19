@@ -46,6 +46,7 @@ export interface User {
       submittedAt: any; // serverTimestamp
       reason?: string;
   }>;
+  completedCpaOffers?: Record<string, boolean>; // New field for tracking completed CPA offers by URL ID
 }
 
 export interface Tournament {
@@ -126,7 +127,7 @@ export interface WithdrawRequest {
 export interface WalletTransaction {
   id: string;
   userId?: string; // Optional for backward compatibility, but should be present
-  type: 'topup' | 'withdrawal' | 'entry_fee' | 'prize' | 'redeem_code' | 'referral_bonus_received' | 'referral_commission_earned' | 'refund' | 'shop_purchase_hold' | 'shop_purchase_complete' | 'spin_wheel_bet' | 'spin_wheel_win' | 'duel_bet' | 'duel_win' | 'watch_earn_conversion' | 'token_purchase' | 'token_sale_payout' | 'market_purchase' | 'market_sale_payout' | 'daily_login_reward';
+  type: 'topup' | 'withdrawal' | 'entry_fee' | 'prize' | 'redeem_code' | 'referral_bonus_received' | 'referral_commission_earned' | 'refund' | 'shop_purchase_hold' | 'shop_purchase_complete' | 'spin_wheel_bet' | 'spin_wheel_win' | 'duel_bet' | 'duel_win' | 'watch_earn_conversion' | 'token_purchase' | 'token_sale_payout' | 'market_purchase' | 'market_sale_payout' | 'daily_login_reward' | 'cpa_grip_reward';
   amount: number; // Positive for income, negative for expense
   status: 'pending' | 'completed' | 'rejected' | 'on_hold' | 'refunded';
   date: string; // ISO string
@@ -396,6 +397,15 @@ export interface ClickMilestone {
     points: number;
 }
 
+export interface CpaGripSettings {
+  enabled: boolean;
+  title: string;
+  description: string;
+  offerUrls: string[];
+  points: number;
+  postbackKey: string;
+}
+
 export interface GlobalSettings {
   appName: string;
   appLogoUrl: string;
@@ -499,6 +509,7 @@ export interface GlobalSettings {
   youtubePromotionSettings?: YouTubePromotionSettings;
   tokenSettings?: TokenSettings;
   adsterraSettings?: AdsterraSettings;
+  cpaGripSettings?: CpaGripSettings;
   scrollingBanners?: Record<string, PromoPost>; // For the new feature
   timebucksTaskSettings?: {
       enabled: boolean;

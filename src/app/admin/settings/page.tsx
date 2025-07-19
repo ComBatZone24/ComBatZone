@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import GlassCard from '@/components/core/glass-card';
-import { Settings, Ticket, Share2, Eye, Server, Link2 as LinkIconLucide, Users, ChevronRight, ShieldAlert, Tv, MousePointerClick, Gift, Palette, Youtube, Rocket, Coins, Gamepad2, ImagePlay, Cpu } from 'lucide-react';
+import { Settings, Ticket, Share2, Eye, Server, Link2 as LinkIconLucide, Users, ChevronRight, ShieldAlert, Tv, MousePointerClick, Gift, Palette, Youtube, Rocket, Coins, Gamepad2, ImagePlay, Cpu, Lock } from 'lucide-react';
 import { settingsCategories } from '@/config/nav'; // Import from config
 
 export default function AdminSettingsHubPage() {

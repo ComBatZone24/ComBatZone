@@ -1,4 +1,5 @@
 
+
 import {
   Home,
   Wallet,
@@ -42,6 +43,7 @@ import {
   Upload,
   ArrowUpCircle,
   SquareDashedKanban,
+  Lock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -328,6 +330,12 @@ export const settingsCategories = [
     href: '/admin/settings/ad-monetization',
     icon: DollarSign,
     description: 'Manage Adsterra ad links and popups.',
+  },
+  {
+    title: 'CPAGrip & Postback',
+    href: '/admin/settings/cpa-grip',
+    icon: Lock,
+    description: 'Configure CPAGrip file locker ads and postback.',
   },
   {
     title: 'Promo Pop-up',

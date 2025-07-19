@@ -6,13 +6,13 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { database } from '@/lib/firebase/config';
 import { ref, onValue, off } from 'firebase/database';
-import type { GlobalSettings, ClickAndEarnLink, YouTubePromotionSettings, User, WalletTransaction, ClickMilestone } from '@/types';
+import type { GlobalSettings, ClickAndEarnLink, YouTubePromotionSettings, User, WalletTransaction, ClickMilestone, CpaGripSettings } from '@/types';
 
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Coins, ExternalLink, Gift, Youtube, Video, Loader2, ListChecks, Wand2, Tv, Info, HelpCircle } from 'lucide-react';
+import { Coins, ExternalLink, Gift, Youtube, Video, Loader2, ListChecks, Wand2, Tv, Info, HelpCircle, Lock } from 'lucide-react';
 import Image from 'next/image';
 
 import { trackTaskClick } from './actions';
@@ -68,6 +68,54 @@ const CustomTaskCard = ({ user, settings }: { user: any, settings: NonNullable<G
             </Button>
         </GlassCard>
     );
+};
+
+const CpaGripTaskCard = ({ user, settings }: { user: User, settings: CpaGripSettings }) => {
+  const [availableUrls, setAvailableUrls] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const completedOffers = user.completedCpaOffers || {};
+    const uncompleted = settings.offerUrls?.filter(url => !completedOffers[btoa(url)]) || [];
+    setAvailableUrls(uncompleted);
+    setIsLoading(false);
+  }, [user.completedCpaOffers, settings.offerUrls]);
+  
+  const handleStartTask = useCallback(() => {
+    if (availableUrls.length === 0 || !settings.postbackKey) return;
+    
+    const randomUrl = availableUrls[Math.floor(Math.random() * availableUrls.length)];
+    const encodedUrlId = btoa(randomUrl); // Base64 encode the URL to use as a unique ID
+
+    const trackingUrl = `${randomUrl}&sub1=${user.id}&sub2=${settings.postbackKey}&offer_url_id=${encodedUrlId}`;
+
+    trackTaskClick(user.id, 'cpagrip_task');
+    window.open(trackingUrl, '_blank', 'noopener,noreferrer');
+  }, [user, settings, availableUrls]);
+  
+  if (isLoading) {
+    return <GlassCard className="flex items-center justify-center p-6 h-64"><Loader2 className="animate-spin h-8 w-8 text-accent"/></GlassCard>;
+  }
+
+  if (availableUrls.length === 0) {
+    // Optionally return null or a "no offers" message
+    return null;
+  }
+
+  return (
+    <GlassCard className="text-center p-6 md:p-8 space-y-6 border-2 border-green-500/30 shadow-green-500/10 shadow-lg">
+      <Lock className="mx-auto h-12 w-12 text-green-400" />
+      <h3 className="text-xl md:text-2xl font-bold text-green-300">{settings.title}</h3>
+      <p className="text-muted-foreground text-base max-w-md mx-auto">{settings.description}</p>
+       <p className="font-bold text-lg text-yellow-400">Reward: {settings.points} PKR</p>
+      <Button
+        onClick={handleStartTask}
+        className="w-full max-w-sm text-md md:text-lg py-4 md:py-6 bg-green-600 hover:bg-green-700 text-white rounded-lg shadow-lg hover:shadow-green-600/50 transition-all duration-300 transform hover:scale-105"
+      >
+        <ExternalLink className="mr-2 h-5 w-5"/> Start Offer
+      </Button>
+    </GlassCard>
+  );
 };
 
 const LiveStreamSection = ({ settings }: { settings: YouTubePromotionSettings }) => {
@@ -148,6 +196,7 @@ export default function EarnTasksPage() {
     const youtubePromotionSettings = globalSettings?.youtubePromotionSettings;
     const timebucksTaskSettings = globalSettings?.timebucksTaskSettings;
     const customTaskCardSettings = globalSettings?.customTaskCardSettings;
+    const cpaGripSettings = globalSettings?.cpaGripSettings;
     
     const isLoading = authLoading || isLoadingSettings;
     
@@ -195,6 +244,13 @@ export default function EarnTasksPage() {
                         </h3>
                         <YoutubePromotionTask settings={youtubePromotionSettings} />
                     </GlassCard>
+                )}
+
+                {user && cpaGripSettings?.enabled && (
+                    <>
+                        <Separator />
+                        <CpaGripTaskCard user={user} settings={cpaGripSettings} />
+                    </>
                 )}
                 
                 {globalSettings?.feyorraTaskEnabled && globalSettings.feyorraReferralUrl && (
