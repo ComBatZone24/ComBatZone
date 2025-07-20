@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import type { User, WalletTransaction, RedeemCodeEntry, GlobalSettings } from '@/types';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
@@ -11,8 +11,8 @@ import { Label } from '@/components/ui/label';
 import RupeeIcon from '@/components/core/rupee-icon';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
-import { database } from '@/lib/firebase/config'; 
-import { ref, get, update, push, runTransaction, query, orderByChild, equalTo } from 'firebase/database';
+import { database, auth } from '@/lib/firebase/config'; 
+import { ref, update, push, runTransaction } from 'firebase/database';
 import type { User as FirebaseUser } from 'firebase/auth'; 
 import {
   Dialog,
@@ -82,32 +82,27 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
 
     try {
       const codeRef = ref(database, `redeemCodes/${codeString}`);
-      const codeSnapshot = await get(codeRef);
-
-      if (!codeSnapshot.exists() || codeSnapshot.val().timesUsed >= codeSnapshot.val().maxUses || (codeSnapshot.val().claimedBy && codeSnapshot.val().claimedBy[firebaseUser.uid])) {
-        toast({ title: "Invalid or Used Code", description: "This code is invalid, already used, or has reached its limit.", variant: "destructive" });
-        setIsRedeeming(false);
-        return;
-      }
       
-      const codeData = codeSnapshot.val() as RedeemCodeEntry;
-      const userRef = ref(database, `users/${firebaseUser.uid}`);
-      
-      await runTransaction(userRef, (currentUserData: User | null) => {
-        if (currentUserData) {
-          currentUserData.wallet = (currentUserData.wallet || 0) + codeData.amount;
-        }
-        return currentUserData;
+      const transactionResult = await runTransaction(codeRef, (codeData: RedeemCodeEntry | null) => {
+        if (codeData === null) return; // Code does not exist
+        if (codeData.timesUsed >= codeData.maxUses) return; // Code is fully used
+        if (codeData.claimedBy && codeData.claimedBy[firebaseUser.uid]) return; // User already claimed
+        
+        codeData.timesUsed = (codeData.timesUsed || 0) + 1;
+        if (!codeData.claimedBy) codeData.claimedBy = {};
+        codeData.claimedBy[firebaseUser.uid] = new Date().toISOString();
+        if(codeData.timesUsed >= codeData.maxUses) codeData.isUsed = true;
+        
+        return codeData;
       });
 
-      const updates: Record<string, any> = {
-        [`redeemCodes/${codeString}/timesUsed`]: (codeData.timesUsed || 0) + 1,
-        [`redeemCodes/${codeString}/claimedBy/${firebaseUser.uid}`]: new Date().toISOString(),
-      };
-      if (((codeData.timesUsed || 0) + 1) >= codeData.maxUses) {
-        updates[`redeemCodes/${codeString}/isUsed`] = true; 
+      if (!transactionResult.committed) {
+         throw new Error("This code is invalid, already used, or has reached its limit.");
       }
-      await update(ref(database), updates);
+
+      const codeData = transactionResult.snapshot.val() as RedeemCodeEntry;
+      const userWalletRef = ref(database, `users/${firebaseUser.uid}/wallet`);
+      await runTransaction(userWalletRef, (currentBalance) => (currentBalance || 0) + codeData.amount);
 
       const newTransaction: Omit<WalletTransaction, 'id'> = {
         type: 'redeem_code', amount: codeData.amount, status: 'completed',
@@ -127,46 +122,23 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   
   const handleRechargeClick = async () => {
     setIsRechargeLoading(true);
-    let contactNumber = '';
     
     try {
-        if (!database || !user) throw new Error("User or database not available.");
+        if (!user) throw new Error("User not available.");
 
-        let targetNumber: string | null = null;
-        const adminNumbers = settings?.contactWhatsapp || [];
-        const appliedCode = user.appliedReferralCode;
+        const response = await fetch('/api/get-contact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ referralCode: user.appliedReferralCode }),
+        });
 
-        if (appliedCode) {
-            const usersRef = ref(database, 'users');
-            const referrerQuery = query(usersRef, orderByChild('referralCode'), equalTo(appliedCode));
-            const snapshot = await get(referrerQuery);
-            
-            if (snapshot.exists()) {
-                const referrerData = snapshot.val();
-                const referrerId = Object.keys(referrerData)[0];
-                const referrer = referrerData[referrerId] as User;
-
-                if (referrer.role === 'delegate' && referrer.isActive) {
-                    targetNumber = referrer.whatsappNumber || referrer.phone || null;
-                }
-            }
-        }
-        
-        // Fallback to admin if no valid delegate is found
-        if (!targetNumber) {
-            if (adminNumbers && adminNumbers.length > 0) {
-                targetNumber = adminNumbers[Math.floor(Math.random() * adminNumbers.length)];
-            }
-        }
-        
-        if (!targetNumber) {
-            throw new Error("No contact number available for recharge. Please contact support.");
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Failed to get contact information.');
         }
 
-        contactNumber = targetNumber.replace(/\D/g, ''); // Clean the number
-        if (!contactNumber) {
-            throw new Error("Contact number is invalid.");
-        }
+        const { contactNumber } = await response.json();
+        const cleanedNumber = contactNumber.replace(/\D/g, '');
 
         const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
         const rechargeMessage = `Assalamualaikum, Admin!
@@ -175,13 +147,13 @@ I need to top-up my Arena Ace wallet. Here are my details:
 -----------------------------------
 *Username:* ${user.username || 'N/A'}
 *User ID:* ${user.id || 'N/A'}
-*Referred By Code:* ${appliedCode || 'N/A'}
+*Referred By Code:* ${user.appliedReferralCode || 'N/A'}
 *Member Since:* ${timeSinceRegistration}
 -----------------------------------
 
 Please guide me on the payment process. Thank you!`.trim();
 
-        const url = `https://wa.me/${contactNumber}?text=${encodeURIComponent(rechargeMessage)}`;
+        const url = `https://wa.me/${cleanedNumber}?text=${encodeURIComponent(rechargeMessage)}`;
         window.open(url, '_blank', 'noopener,noreferrer');
 
     } catch (error: any) {
