@@ -4,19 +4,22 @@
 import { useState, useEffect } from 'react';
 import GlassCard from '@/components/core/glass-card';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Gamepad2, UserPlus, DownloadCloud, Hourglass, Loader2, Trash, UserCircle, LogOut, Wallet, Activity, TrendingUp, TrendingDown, FileText } from 'lucide-react';
+import { Users, Gamepad2, UserPlus, DownloadCloud, Hourglass, Loader2, Trash, UserCircle, LogOut, Wallet, Activity, TrendingUp, TrendingDown, FileText, Ticket, Save } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { database } from '@/lib/firebase/config';
-import { ref, get, query, orderByChild, equalTo, limitToLast, onValue, off } from 'firebase/database';
-import type { Tournament, WithdrawRequest, User, WalletTransaction } from '@/types';
+import { ref, get, query, orderByChild, equalTo, limitToLast, onValue, off, set } from 'firebase/database';
+import type { Tournament, WithdrawRequest, User, WalletTransaction, RedeemCodeEntry } from '@/types';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow, isToday, parseISO } from 'date-fns';
 import { Separator } from '@/components/ui/separator';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 interface StatData {
   title: string;
@@ -70,12 +73,18 @@ const cardVariants = {
 };
 
 export default function AdminDashboardPage() {
+  const { user: appUser } = useAuth();
   const [financialStats, setFinancialStats] = useState<StatData[]>(initialStats);
   const [userStats, setUserStats] = useState<StatData[]>(initialUserStats);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
   const [isLoadingActivities, setIsLoadingActivities] = useState(true);
   const { toast } = useToast();
+
+  const [redeemCode, setRedeemCode] = useState('');
+  const [redeemAmount, setRedeemAmount] = useState('');
+  const [maxUses, setMaxUses] = useState<number | string>(1);
+  const [isGeneratingCode, setIsGeneratingCode] = useState(false);
 
   useEffect(() => {
     const fetchOtherData = async () => {
@@ -222,13 +231,57 @@ export default function AdminDashboardPage() {
 
   }, [toast]);
 
+  const handleGenerateRedeemCode = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const numericAmount = parseFloat(redeemAmount);
+    const numericMaxUses = parseInt(String(maxUses), 10);
+
+    if (!redeemCode.trim() || isNaN(numericAmount) || numericAmount <= 0) {
+      toast({ title: "Invalid Input", description: "Please enter a valid code and amount.", variant: "destructive" });
+      return;
+    }
+    if (isNaN(numericMaxUses) || numericMaxUses <= 0) {
+      toast({ title: "Invalid Input", description: "Max uses must be a positive number.", variant: "destructive" });
+      return;
+    }
+
+    setIsGeneratingCode(true);
+    try {
+      if (!database) throw new Error("Firebase not initialized");
+      
+      const codeString = redeemCode.trim().toUpperCase();
+      const existingCodeRef = ref(database, `redeemCodes/${codeString}`);
+      const existingCodeSnap = await get(existingCodeRef);
+      if (existingCodeSnap.exists()) {
+        toast({ title: "Code Exists", description: `Code "${codeString}" already exists.`, variant: "destructive" });
+        setIsGeneratingCode(false);
+        return;
+      }
+
+      const newCodeEntry: RedeemCodeEntry = {
+        amount: numericAmount, isUsed: false, usedBy: null,
+        createdAt: new Date().toISOString(), maxUses: numericMaxUses,
+        timesUsed: 0, claimedBy: {},
+      };
+      
+      await set(ref(database, `redeemCodes/${codeString}`), newCodeEntry);
+      toast({ title: "Code Generated", description: `Code "${codeString}" created.`, className: "bg-green-500/20" });
+      setRedeemCode('');
+      setRedeemAmount('');
+      setMaxUses(1);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingCode(false);
+    }
+  };
+
   const renderTimestamp = (timestamp: string) => {
     try {
       const date = new Date(timestamp);
       if (isNaN(date.getTime())) return <span className="text-red-500">Invalid date</span>;
       return formatDistanceToNow(date, { addSuffix: true });
     } catch (e) {
-      console.warn("Error formatting date for activity:", timestamp, e);
       return <span className="text-red-500">Date error</span>;
     }
   };
@@ -244,7 +297,7 @@ export default function AdminDashboardPage() {
     });
   };
 
-  const renderStatCard = (stat: StatData) => (
+  const renderStatCard = (stat: StatData, index: number) => (
       <motion.div key={stat.title} variants={cardVariants} whileHover={{ scale: 1.05, rotateY: 5, rotateX: -5 }} transition={{ type: 'spring', stiffness: 300 }}>
         <GlassCard className="p-0 overflow-hidden h-full">
             <Link href={stat.href || '#'} className={`block h-full ${stat.href ? 'hover:bg-muted/10 transition-colors' : 'cursor-default'}`}>
@@ -260,6 +313,8 @@ export default function AdminDashboardPage() {
         </GlassCard>
       </motion.div>
   );
+
+  const canGenerateRedeemCode = appUser?.role === 'admin' || (appUser?.role === 'delegate' && appUser.delegatePermissions?.accessScreens?.coupons);
 
   return (
     <div className="space-y-8">
@@ -283,16 +338,16 @@ export default function AdminDashboardPage() {
       ) : (
          <div className="space-y-6">
             <h2 className="text-xl font-semibold text-foreground">Financial Overview</h2>
-            <ScrollArea className="w-full md:hidden">
-              <div className="flex w-max space-x-4 pb-4">
-                {financialStats.map(stat => (
-                  <div key={stat.title} className="w-60 flex-shrink-0">{renderStatCard(stat)}</div>
-                ))}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            <div className="md:hidden">
+                <ScrollArea className="w-full whitespace-nowrap">
+                    <motion.div className="flex w-max space-x-4 pb-4" variants={containerVariants} initial="hidden" animate="visible">
+                        {financialStats.map(renderStatCard)}
+                    </motion.div>
+                    <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+            </div>
             <motion.div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" variants={containerVariants} initial="hidden" animate="visible">
-                {financialStats.map(stat => renderStatCard(stat))}
+                {financialStats.map(renderStatCard)}
             </motion.div>
          </div>
       )}
@@ -302,17 +357,37 @@ export default function AdminDashboardPage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-2 space-y-6">
             <h2 className="text-xl font-semibold text-foreground">User & Engagement Metrics</h2>
-             <ScrollArea className="w-full md:hidden">
-                <div className="flex w-max space-x-4 pb-4">
-                  {userStats.map(stat => (
-                    <div key={stat.title} className="w-60 flex-shrink-0">{renderStatCard(stat)}</div>
-                  ))}
-                </div>
-                <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            <div className="md:hidden">
+                <ScrollArea className="w-full whitespace-nowrap">
+                    <motion.div className="flex w-max space-x-4 pb-4" variants={containerVariants} initial="hidden" animate="visible">
+                        {userStats.map(renderStatCard)}
+                    </motion.div>
+                    <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+            </div>
             <motion.div className="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" variants={containerVariants} initial="hidden" animate="visible">
-                {userStats.map(stat => renderStatCard(stat))}
+                {userStats.map(renderStatCard)}
             </motion.div>
+            
+            {canGenerateRedeemCode && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
+                <GlassCard>
+                    <h3 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h3>
+                    <form onSubmit={handleGenerateRedeemCode} className="space-y-4">
+                        <Label>Generate Redeem Code</Label>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                            <div><Label htmlFor="redeemCode" className="text-xs text-muted-foreground">Code</Label><Input id="redeemCode" value={redeemCode} onChange={(e) => setRedeemCode(e.target.value.toUpperCase())} placeholder="E.g., WELCOME50" /></div>
+                            <div><Label htmlFor="redeemAmount" className="text-xs text-muted-foreground">Amount (Rs)</Label><Input id="redeemAmount" type="number" value={redeemAmount} onChange={(e) => setRedeemAmount(e.target.value)} placeholder="e.g., 100" /></div>
+                            <div><Label htmlFor="maxUses" className="text-xs text-muted-foreground">Max Uses</Label><Input id="maxUses" type="number" value={maxUses} onChange={(e) => setMaxUses(e.target.value)} placeholder="e.g., 1" /></div>
+                        </div>
+                        <Button type="submit" disabled={isGeneratingCode} className="w-full sm:w-auto">
+                            {isGeneratingCode ? <Loader2 className="animate-spin mr-2" /> : <Ticket className="mr-2 h-4" />}
+                            Generate Code
+                        </Button>
+                    </form>
+                </GlassCard>
+            </motion.div>
+            )}
         </div>
 
         <motion.div className="xl:col-span-1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.5, delay: 0.4 }}>
@@ -323,7 +398,7 @@ export default function AdminDashboardPage() {
                     <Loader2 className="h-10 w-10 animate-spin text-accent" />
                 </div>
                 ) : recentActivities.length > 0 ? (
-                <ScrollArea className="h-80">
+                <ScrollArea className="h-[400px]">
                     <ul className="space-y-3 pr-2">
                     {recentActivities.map((activity, index) => (
                         <motion.li key={activity.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: index * 0.1 }} className="flex items-start space-x-3 p-3 bg-background/30 rounded-lg border border-border/30 hover:bg-muted/20 transition-colors">

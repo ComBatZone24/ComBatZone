@@ -1,5 +1,4 @@
 
-
 {
   "rules": {
     ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
@@ -44,7 +43,7 @@
 
     "redeemCodes": {
       ".read": "auth != null",
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('coupons').val() === true))",
       "$codeId": {
         ".read": "auth != null",
         ".write": "(auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin') || (auth != null && !data.child('claimedBy').hasChild(auth.uid) && newData.child('claimedBy').hasChild(auth.uid))"
