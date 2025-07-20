@@ -128,7 +128,7 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   const handleRechargeClick = async () => {
     setIsRechargeLoading(true);
     let finalContactNumber = '';
-
+    
     try {
         if (!database || !user) throw new Error("User or database not available.");
 
@@ -144,20 +144,23 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
                 const referrerData = snapshot.val()[referrerId] as User;
                 
                 if (referrerData.role === 'delegate' && referrerData.isActive) {
-                    // Prioritize dedicated WhatsApp number, fall back to phone
-                    if (referrerData.whatsappNumber) contactNumbers.push(referrerData.whatsappNumber);
-                    else if (referrerData.phone) contactNumbers.push(referrerData.phone);
+                    const delegateContact = referrerData.whatsappNumber || referrerData.phone;
+                    if(delegateContact) {
+                        const sanitized = delegateContact.replace(/\D/g, '');
+                        if (sanitized) contactNumbers.push(sanitized);
+                    }
                 }
             }
         }
         
         // If no valid delegate number was found, use admin's numbers as fallback
-        if(contactNumbers.length === 0) {
+        if (contactNumbers.length === 0) {
             const adminNumbers = settings?.contactWhatsapp || [];
             if (adminNumbers.length > 0) {
-                contactNumbers = adminNumbers;
-            } else {
-                 throw new Error("No contact number available for recharge. Please contact support.");
+                contactNumbers = adminNumbers.map(n => n.replace(/\D/g, '')).filter(n => n);
+            }
+            if (contactNumbers.length === 0) {
+                throw new Error("No contact number available for recharge. Please contact support.");
             }
         }
       
@@ -186,8 +189,7 @@ I would like to recharge my Arena Ace wallet. Here are my details for your refer
 
 Please guide me on the recharge process. Thank you!`.trim();
 
-      const sanitizedNumber = finalContactNumber.replace(/\D/g, '');
-      const url = `https://wa.me/${sanitizedNumber}?text=${encodeURIComponent(rechargeMessage)}`;
+      const url = `https://wa.me/${finalContactNumber}?text=${encodeURIComponent(rechargeMessage)}`;
       window.open(url, '_blank', 'noopener,noreferrer');
 
     } catch (error: any) {
@@ -195,7 +197,7 @@ Please guide me on the recharge process. Thank you!`.trim();
     } finally {
         setIsRechargeLoading(false);
     }
-};
+  };
 
   
   const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
@@ -213,7 +215,7 @@ Please guide me on the recharge process. Thank you!`.trim();
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" onClick={handleRechargeClick} disabled={!canRecharge || isRechargeLoading}>
              {isRechargeLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <PlusCircle className="mr-2 h-5 w-5" />}
-              Recharge Your Digital Vault!
+              Recharge
               {!canRecharge && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
           </Button>
 

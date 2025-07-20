@@ -67,7 +67,7 @@ export default function ReferralAnalysisPage() {
         const allUserArray: (User & { id: string })[] = Object.entries(allUsers).map(([id, user]) => ({ id, ...user }));
 
         for (const user of allUserArray) {
-            if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '') {
+            if (user.referralCode && typeof user.referralCode === 'string' && user.referralCode.trim() !== '' && user.role === 'delegate') {
                 const normalizedCode = user.referralCode.trim().toUpperCase();
                 delegateCodeToUidMap[normalizedCode] = user.id;
             }
@@ -274,7 +274,7 @@ export default function ReferralAnalysisPage() {
         <AlertCircle className="h-5 w-5 !text-primary" />
         <AlertTitle className="!text-primary">How this works</AlertTitle>
         <AlertDescription className="!text-primary/80">
-          This page analyzes all users to find delegates (users with a `referralCode`). It then counts how many other users have registered using that delegate's code (via the `appliedReferralCode` field). It also sums up all 'topup' transactions made by those referred users to calculate the total contribution. Weekly refers to the current week (Monday-Sunday).
+          This page analyzes all users to find delegates (users with a `referralCode` and role `delegate`). It then counts how many other users have registered using that delegate's code (via the `appliedReferralCode` field). It also sums up all 'topup' transactions made by those referred users to calculate the total contribution. Weekly refers to the current week (Monday-Sunday).
         </AlertDescription>
       </Alert>
     </div>
