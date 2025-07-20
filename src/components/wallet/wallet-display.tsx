@@ -127,70 +127,62 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   
   const handleRechargeClick = async () => {
     setIsRechargeLoading(true);
-    let finalContactNumber = '';
+    let contactNumber = '';
     
     try {
         if (!database || !user) throw new Error("User or database not available.");
 
-        let contactNumbers: string[] = [];
+        let targetNumber: string | null = null;
+        const adminNumbers = settings?.contactWhatsapp || [];
+        const appliedCode = user.appliedReferralCode;
 
-        // Check for referral if the code exists
-        if (user.appliedReferralCode && user.appliedReferralCode.trim() !== '') {
-            const referrerQuery = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(user.appliedReferralCode));
+        if (appliedCode) {
+            const usersRef = ref(database, 'users');
+            const referrerQuery = query(usersRef, orderByChild('referralCode'), equalTo(appliedCode));
             const snapshot = await get(referrerQuery);
             
             if (snapshot.exists()) {
-                const referrerId = Object.keys(snapshot.val())[0];
-                const referrerData = snapshot.val()[referrerId] as User;
-                
-                if (referrerData.role === 'delegate' && referrerData.isActive) {
-                    const delegateContact = referrerData.whatsappNumber || referrerData.phone;
-                    if(delegateContact) {
-                        const sanitized = delegateContact.replace(/\D/g, '');
-                        if (sanitized) contactNumbers.push(sanitized);
-                    }
+                const referrerData = snapshot.val();
+                const referrerId = Object.keys(referrerData)[0];
+                const referrer = referrerData[referrerId] as User;
+
+                if (referrer.role === 'delegate' && referrer.isActive) {
+                    targetNumber = referrer.whatsappNumber || referrer.phone || null;
                 }
             }
         }
         
-        // If no valid delegate number was found, use admin's numbers as fallback
-        if (contactNumbers.length === 0) {
-            const adminNumbers = settings?.contactWhatsapp || [];
-            if (adminNumbers.length > 0) {
-                contactNumbers = adminNumbers.map(n => n.replace(/\D/g, '')).filter(n => n);
-            }
-            if (contactNumbers.length === 0) {
-                throw new Error("No contact number available for recharge. Please contact support.");
+        // Fallback to admin if no valid delegate is found
+        if (!targetNumber) {
+            if (adminNumbers && adminNumbers.length > 0) {
+                targetNumber = adminNumbers[Math.floor(Math.random() * adminNumbers.length)];
             }
         }
-      
-        finalContactNumber = contactNumbers[Math.floor(Math.random() * contactNumbers.length)];
-      
-        const topUpCount = transactions.filter(tx => tx.type === 'topup' && tx.status === 'completed').length;
-        const withdrawalCount = transactions.filter(tx => tx.type === 'withdrawal' && tx.status === 'completed').length;
+        
+        if (!targetNumber) {
+            throw new Error("No contact number available for recharge. Please contact support.");
+        }
+
+        contactNumber = targetNumber.replace(/\D/g, ''); // Clean the number
+        if (!contactNumber) {
+            throw new Error("Contact number is invalid.");
+        }
+
         const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
-      
         const rechargeMessage = `Assalamualaikum, Admin!
 
-I would like to recharge my Arena Ace wallet. Here are my details for your reference:
+I need to top-up my Arena Ace wallet. Here are my details:
 -----------------------------------
-*User Details:*
-- *Username:* ${user.username || 'N/A'}
-- *User ID:* ${user.id || 'N/A'}
-- *Email:* ${user.email || 'N/A'}
-
-*Account Stats:*
-- *Current Balance:* Rs ${user.wallet.toFixed(2)}
-- *Watch & Earn Points:* ${(user.watchAndEarnPoints || 0).toFixed(4)}
-- *Total Top-ups:* ${topUpCount}
-- *Total Withdrawals:* ${withdrawalCount}
-- *Member Since:* ${timeSinceRegistration}
+*Username:* ${user.username || 'N/A'}
+*User ID:* ${user.id || 'N/A'}
+*Referred By Code:* ${appliedCode || 'N/A'}
+*Member Since:* ${timeSinceRegistration}
 -----------------------------------
 
-Please guide me on the recharge process. Thank you!`.trim();
+Please guide me on the payment process. Thank you!`.trim();
 
-      const url = `https://wa.me/${finalContactNumber}?text=${encodeURIComponent(rechargeMessage)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+        const url = `https://wa.me/${contactNumber}?text=${encodeURIComponent(rechargeMessage)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
 
     } catch (error: any) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -198,7 +190,6 @@ Please guide me on the recharge process. Thank you!`.trim();
         setIsRechargeLoading(false);
     }
   };
-
   
   const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
   const canRecharge = settings?.contactWhatsapp && settings.contactWhatsapp.length > 0;
@@ -215,7 +206,7 @@ Please guide me on the recharge process. Thank you!`.trim();
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" onClick={handleRechargeClick} disabled={!canRecharge || isRechargeLoading}>
              {isRechargeLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <PlusCircle className="mr-2 h-5 w-5" />}
-              Recharge
+              Contact for Top-up
               {!canRecharge && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
           </Button>
 

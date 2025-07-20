@@ -14,17 +14,17 @@
     },
     
     "users": {
-      ".write": "auth != null && (!data.exists() || auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('users').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('demographics').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))",
       ".indexOn": ["username", "role", "referralCode", "createdAt", "email", "gameUid", "gameName", "isOnline"],
       "$uid": {
-        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true))",
+        ".read": "auth != null && auth.uid === $uid",
         ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
         
         "email": { ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'" },
         "phone": { ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'" },
         "whatsappNumber": { ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'" },
-        "delegatePermissions": { ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'" },
+        "delegatePermissions": { ".read": "auth != null" },
+        "referralCode": { ".read": "auth != null" },
+
         "location": { ".write": "auth.uid === $uid" },
         "isOnline": { ".write": "auth != null && auth.uid === $uid" },
         "pendingYoutubeSubmissions": {
