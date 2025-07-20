@@ -12,7 +12,7 @@ import RupeeIcon from '@/components/core/rupee-icon';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { database } from '@/lib/firebase/config'; 
-import { ref, get, update, push, runTransaction } from 'firebase/database';
+import { ref, get, update, push, runTransaction, query, orderByChild, equalTo } from 'firebase/database';
 import type { User as FirebaseUser } from 'firebase/auth'; 
 import {
   Dialog,
@@ -28,8 +28,6 @@ import { useAd } from '@/context/AdContext';
 import { Separator } from '../ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Image from 'next/image';
-import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Coins } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -50,6 +48,7 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
   const [isMobileLoadDialogOpen, setIsMobileLoadDialogOpen] = useState(false);
+  const [isRechargeLoading, setIsRechargeLoading] = useState(false);
   
 
   const getTransactionTypeIcon = (type: WalletTransaction['type']) => {
@@ -126,18 +125,49 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
     }
   };
   
+  const handleRechargeClick = async () => {
+    setIsRechargeLoading(true);
+    let finalContactNumber = '';
 
-  const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
-  
-  const getRechargeUrl = () => {
-    // Calculate user stats
-    const topUpCount = transactions.filter(tx => tx.type === 'topup' && tx.status === 'completed').length;
-    const withdrawalCount = transactions.filter(tx => tx.type === 'withdrawal' && tx.status === 'completed').length;
-    const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
-    
-    // Construct the detailed message
-    const rechargeMessage = `
-Assalamualaikum, Admin!
+    try {
+        if (!database || !user) throw new Error("User or database not available.");
+
+        let contactNumbers: string[] = [];
+
+        // Check for referral if the code exists
+        if (user.appliedReferralCode && user.appliedReferralCode.trim() !== '') {
+            const referrerQuery = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(user.appliedReferralCode));
+            const snapshot = await get(referrerQuery);
+            
+            if (snapshot.exists()) {
+                const referrerId = Object.keys(snapshot.val())[0];
+                const referrerData = snapshot.val()[referrerId] as User;
+                
+                if (referrerData.role === 'delegate' && referrerData.isActive) {
+                    // Prioritize dedicated WhatsApp number, fall back to phone
+                    if (referrerData.whatsappNumber) contactNumbers.push(referrerData.whatsappNumber);
+                    else if (referrerData.phone) contactNumbers.push(referrerData.phone);
+                }
+            }
+        }
+        
+        // If no valid delegate number was found, use admin's numbers as fallback
+        if(contactNumbers.length === 0) {
+            const adminNumbers = settings?.contactWhatsapp || [];
+            if (adminNumbers.length > 0) {
+                contactNumbers = adminNumbers;
+            } else {
+                 throw new Error("No contact number available for recharge. Please contact support.");
+            }
+        }
+      
+        finalContactNumber = contactNumbers[Math.floor(Math.random() * contactNumbers.length)];
+      
+        const topUpCount = transactions.filter(tx => tx.type === 'topup' && tx.status === 'completed').length;
+        const withdrawalCount = transactions.filter(tx => tx.type === 'withdrawal' && tx.status === 'completed').length;
+        const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
+      
+        const rechargeMessage = `Assalamualaikum, Admin!
 
 I would like to recharge my Arena Ace wallet. Here are my details for your reference:
 -----------------------------------
@@ -154,16 +184,22 @@ I would like to recharge my Arena Ace wallet. Here are my details for your refer
 - *Member Since:* ${timeSinceRegistration}
 -----------------------------------
 
-Please guide me on the recharge process. Thank you!
-    `.trim();
+Please guide me on the recharge process. Thank you!`.trim();
 
-    const links = settings?.contactWhatsapp || [];
-    if (links.length === 0) return '#';
-    const randomLink = links[Math.floor(Math.random() * links.length)];
-    return `${randomLink}?text=${encodeURIComponent(rechargeMessage)}`;
-  };
+      const sanitizedNumber = finalContactNumber.replace(/\D/g, '');
+      const url = `https://wa.me/${sanitizedNumber}?text=${encodeURIComponent(rechargeMessage)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+
+    } catch (error: any) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+        setIsRechargeLoading(false);
+    }
+};
+
   
-  const canRecharge = Array.isArray(settings?.contactWhatsapp) && settings.contactWhatsapp.length > 0;
+  const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
+  const canRecharge = settings?.contactWhatsapp && settings.contactWhatsapp.length > 0;
 
   return (
     <div className="space-y-8">
@@ -175,11 +211,10 @@ Please guide me on the recharge process. Thank you!
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" asChild disabled={!canRecharge}>
-            <a href={canRecharge ? getRechargeUrl() : '#'} target="_blank" rel="noopener noreferrer">
-              <PlusCircle className="mr-2 h-5 w-5" /> Recharge Your Digital Vault!
+          <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" onClick={handleRechargeClick} disabled={!canRecharge || isRechargeLoading}>
+             {isRechargeLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <PlusCircle className="mr-2 h-5 w-5" />}
+              Recharge Your Digital Vault!
               {!canRecharge && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
-            </a>
           </Button>
 
           {isMobileLoadEnabled && (

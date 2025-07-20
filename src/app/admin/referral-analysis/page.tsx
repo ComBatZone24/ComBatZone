@@ -9,11 +9,13 @@ import { useToast } from '@/hooks/use-toast';
 import GlassCard from '@/components/core/glass-card';
 import PageTitle from '@/components/core/page-title';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, GitBranch, AlertCircle } from 'lucide-react';
+import { Loader2, GitBranch, AlertCircle, CalendarDays, Users, MessageSquare as WhatsappIcon } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { User, WalletTransaction } from '@/types';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Separator } from '@/components/ui/separator';
 
 interface DelegateStats {
   delegateName: string;
@@ -22,7 +24,17 @@ interface DelegateStats {
   weeklyReferred: number;
   monthlyReferred: number;
   totalTopUp: number;
+  avatarUrl: string | null;
+  whatsappNumber?: string;
 }
+
+const StatItem: React.FC<{ icon: React.ElementType, label: string, value: string | number }> = ({ icon: Icon, label, value }) => (
+    <div className="flex justify-between items-center text-sm py-1.5">
+      <span className="flex items-center text-muted-foreground"><Icon className="mr-2 h-4 w-4"/>{label}</span>
+      <span className="font-semibold text-foreground">{value}</span>
+    </div>
+);
+
 
 export default function ReferralAnalysisPage() {
   const [analysisData, setAnalysisData] = useState<DelegateStats[]>([]);
@@ -68,6 +80,8 @@ export default function ReferralAnalysisPage() {
                 delegateStats[delegateUid] = {
                     delegateUid,
                     delegateName: delegateInfo.username || 'Unnamed Delegate',
+                    avatarUrl: delegateInfo.avatarUrl || null,
+                    whatsappNumber: delegateInfo.whatsappNumber,
                     totalReferred: 0,
                     weeklyReferred: 0,
                     monthlyReferred: 0,
@@ -173,37 +187,85 @@ export default function ReferralAnalysisPage() {
              <p className="text-xs mt-1">Users need to sign up using referral codes for data to appear here.</p>
           </div>
         ) : (
-          <div className="relative flex-1">
-            <ScrollArea className="absolute inset-0">
-              <Table className="min-w-[950px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Delegate Name</TableHead>
-                    <TableHead>Delegate UID</TableHead>
-                    <TableHead className="text-center">Total Referrals</TableHead>
-                    <TableHead className="text-center">Weekly</TableHead>
-                    <TableHead className="text-center">Monthly</TableHead>
-                    <TableHead className="text-right">Total Top-Up by Referred Users</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {analysisData.map((delegate) => (
-                    <TableRow key={delegate.delegateUid}>
-                      <TableCell className="font-medium text-foreground">{delegate.delegateName}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">{delegate.delegateUid}</TableCell>
-                      <TableCell className="text-center font-bold text-lg text-accent">{delegate.totalReferred}</TableCell>
-                      <TableCell className="text-center font-medium text-foreground">{delegate.weeklyReferred}</TableCell>
-                      <TableCell className="text-center font-medium text-foreground">{delegate.monthlyReferred}</TableCell>
-                      <TableCell className="text-right font-semibold">
-                        <RupeeIcon className="inline h-3.5 mr-0.5 -mt-0.5" />
-                        {delegate.totalTopUp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </TableCell>
+          <div className="flex-1">
+            {/* Desktop Table View */}
+            <div className="hidden md:block relative h-full">
+              <ScrollArea className="absolute inset-0">
+                <Table className="min-w-[950px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Delegate</TableHead>
+                      <TableHead>WhatsApp</TableHead>
+                      <TableHead className="text-center">Total Referrals</TableHead>
+                      <TableHead className="text-center">Weekly</TableHead>
+                      <TableHead className="text-center">Monthly</TableHead>
+                      <TableHead className="text-right">Total Top-Up by Referred Users</TableHead>
                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {analysisData.map((delegate) => (
+                      <TableRow key={delegate.delegateUid}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10 border-2 border-primary/30">
+                              <AvatarImage src={delegate.avatarUrl || undefined} alt={delegate.delegateName}/>
+                              <AvatarFallback>{delegate.delegateName.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <p className="font-medium text-foreground">{delegate.delegateName}</p>
+                                <p className="font-mono text-xs text-muted-foreground">{delegate.delegateUid}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{delegate.whatsappNumber || 'N/A'}</TableCell>
+                        <TableCell className="text-center font-bold text-lg text-accent">{delegate.totalReferred}</TableCell>
+                        <TableCell className="text-center font-medium text-foreground">{delegate.weeklyReferred}</TableCell>
+                        <TableCell className="text-center font-medium text-foreground">{delegate.monthlyReferred}</TableCell>
+                        <TableCell className="text-right font-semibold">
+                          <RupeeIcon className="inline h-3.5 mr-0.5 -mt-0.5" />
+                          {delegate.totalTopUp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </div>
+            {/* Mobile Card View */}
+            <div className="md:hidden">
+              <ScrollArea className="h-full">
+                <div className="p-4 space-y-4">
+                  {analysisData.map((delegate) => (
+                    <GlassCard key={delegate.delegateUid} className="p-4 bg-card/80">
+                      <div className="flex items-center gap-3 mb-3">
+                        <Avatar className="h-12 w-12 border-2 border-primary/30">
+                          <AvatarImage src={delegate.avatarUrl || undefined} alt={delegate.delegateName}/>
+                          <AvatarFallback>{delegate.delegateName.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <p className="font-bold text-lg text-foreground">{delegate.delegateName}</p>
+                            <p className="font-mono text-xs text-muted-foreground">{delegate.delegateUid}</p>
+                        </div>
+                      </div>
+                      <Separator className="mb-3 bg-border/50" />
+                      <div className="space-y-2">
+                        <StatItem icon={WhatsappIcon} label="WhatsApp" value={delegate.whatsappNumber || 'N/A'}/>
+                        <StatItem icon={Users} label="Total Referrals" value={delegate.totalReferred} />
+                        <StatItem icon={CalendarDays} label="Weekly Referrals" value={delegate.weeklyReferred} />
+                        <StatItem icon={CalendarDays} label="Monthly Referrals" value={delegate.monthlyReferred} />
+                        <div className="flex justify-between items-center text-sm py-1.5">
+                          <span className="flex items-center text-muted-foreground"><RupeeIcon className="mr-2 h-4 w-4"/>Total Top-up</span>
+                          <span className="font-semibold text-foreground">
+                            {delegate.totalTopUp.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </div>
+                    </GlassCard>
                   ))}
-                </TableBody>
-              </Table>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+                </div>
+              </ScrollArea>
+            </div>
           </div>
         )}
       </GlassCard>

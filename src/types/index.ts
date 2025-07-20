@@ -5,6 +5,7 @@ export interface User {
   username: string;
   email: string;
   phone: string | null;
+  whatsappNumber?: string; // Dedicated WhatsApp number
   wallet: number;
   tokenWallet?: number;
   role: 'user' | 'admin' | 'delegate';
@@ -46,7 +47,7 @@ export interface User {
       submittedAt: any; // serverTimestamp
       reason?: string;
   }>;
-  completedCpaOffers?: Record<string, boolean>; // New field for tracking completed CPA offers by URL ID
+  completedCpaOffers?: Record<string, boolean>;
 }
 
 export interface Tournament {

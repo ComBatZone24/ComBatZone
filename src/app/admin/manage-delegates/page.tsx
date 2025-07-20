@@ -34,7 +34,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { UserCog, PlusCircle, Edit3, Trash2, Loader2, Save, Users, ShieldAlert, Mail } from 'lucide-react';
+import { UserCog, PlusCircle, Edit3, Trash2, Loader2, Save, Users, ShieldAlert, Mail, MessageSquare as WhatsappIcon, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, database } from '@/lib/firebase/config';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
@@ -42,26 +42,29 @@ import { ref, onValue, off, update, query, orderByChild, equalTo, get } from 'fi
 import type { User as AppUserType } from '@/types';
 import { adminNavItems } from '@/config/nav';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Separator } from "@/components/ui/separator";
+import { Label } from '@/components/ui/label';
 
 interface DelegateAccessInfo {
   username: string;
+  whatsappNumber?: string;
   accessScreens: Record<string, boolean>;
   createdAt?: string;
 }
 type DelegateMap = Record<string, DelegateAccessInfo>;
 
-// Validation has been completely removed from accessScreens to ensure flexibility.
 const delegateSchema = z.object({
   targetUserEmail: z.string().email("Please enter a valid email address."),
-  accessScreens: z.any().optional(),
+  whatsappNumber: z.string().optional(),
+  accessScreens: z.record(z.boolean()).optional(),
 });
-
 type DelegateFormValues = z.infer<typeof delegateSchema>;
 
-// Filter out screens that shouldn't be delegatable
 const availableAdminScreens = adminNavItems
   .filter(item => item.permissionKey && !['manageDelegates', 'subAdmins'].includes(item.permissionKey))
   .map(item => ({ id: item.permissionKey!, label: item.title }));
+
+type FoundUser = { uid: string; username: string; email: string };
 
 export default function ManageDelegatesPage() {
   const { toast } = useToast();
@@ -76,21 +79,22 @@ export default function ManageDelegatesPage() {
   
   const [delegateToDeleteUID, setDelegateToDeleteUID] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
+  const [isFindingUser, setIsFindingUser] = useState(false);
+  const [userEmailToFind, setUserEmailToFind] = useState('');
 
   const form = useForm<DelegateFormValues>({
     resolver: zodResolver(delegateSchema),
     defaultValues: {
       targetUserEmail: "",
+      whatsappNumber: "",
       accessScreens: {},
     },
   });
 
   useEffect(() => {
-    if (!auth) {
-      toast({ title: "Auth Error", description: "Firebase Auth not initialized.", variant: "destructive" });
-      setIsLoading(false);
-      return;
-    }
+    if (!auth) { setIsLoading(false); return; }
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setMainAdminUser(user);
       if (!user) setIsLoading(false);
@@ -99,26 +103,20 @@ export default function ManageDelegatesPage() {
   }, [toast]);
 
   useEffect(() => {
-    if (!mainAdminUser || !database) {
-      setDelegates({});
-      setIsLoading(false);
-      return;
-    }
+    if (!mainAdminUser || !database) { setIsLoading(false); return; }
     setIsLoading(true);
     const usersRef = query(ref(database, 'users'), orderByChild('role'), equalTo('delegate'));
-    
     const listener = onValue(usersRef, (snapshot) => {
       const delegatedUsers: DelegateMap = {};
       if(snapshot.exists()){
         snapshot.forEach(childSnapshot => {
           const userData = childSnapshot.val() as AppUserType;
-          if (userData.delegatePermissions) {
-            delegatedUsers[childSnapshot.key!] = {
-              username: userData.username,
-              accessScreens: userData.delegatePermissions.accessScreens,
-              createdAt: userData.createdAt,
-            };
-          }
+          delegatedUsers[childSnapshot.key!] = {
+            username: userData.username,
+            whatsappNumber: userData.whatsappNumber,
+            accessScreens: userData.delegatePermissions?.accessScreens || {},
+            createdAt: userData.createdAt,
+          };
         });
       }
       setDelegates(delegatedUsers);
@@ -130,22 +128,50 @@ export default function ManageDelegatesPage() {
     });
     return () => off(usersRef, 'value', listener);
   }, [mainAdminUser, toast]);
+  
+  const findUserByEmail = async (email: string) => {
+    setIsFindingUser(true);
+    try {
+        if (!database) return null;
+        const usersRef = ref(database, 'users');
+        const emailQuery = query(usersRef, orderByChild('email'), equalTo(email.trim()));
+        const snapshot = await get(emailQuery);
 
-  const findUserByEmail = async (email: string): Promise<(AppUserType & { uid: string }) | null> => {
-    if (!database) return null;
-    const usersRef = ref(database, 'users');
-    const emailQuery = query(usersRef, orderByChild('email'), equalTo(email));
-    const snapshot = await get(emailQuery);
-    if (snapshot.exists()) {
-      const usersData = snapshot.val();
-      const uid = Object.keys(usersData)[0];
-      return { uid, ...usersData[uid] };
+        if (snapshot.exists()) {
+            const usersData = snapshot.val();
+            const uid = Object.keys(usersData)[0];
+            const userData = usersData[uid] as AppUserType;
+            if (uid === mainAdminUser?.uid) {
+                 toast({ title: "Invalid Action", description: "You cannot delegate permissions to yourself.", variant: "destructive" });
+                 return;
+            }
+            if (userData.role === 'delegate' || userData.role === 'admin') {
+                toast({ title: "User Already Delegate/Admin", description: `${userData.username} already has elevated permissions.`, variant: "default" });
+            }
+            const userToAssign: FoundUser = { uid, ...userData };
+            setFoundUser(userToAssign);
+            form.setValue('targetUserEmail', userToAssign.email);
+        } else {
+             toast({ title: "User Not Found", description: `No user found with email ${email}.`, variant: "destructive" });
+             setFoundUser(null);
+        }
+    } catch(err) {
+        toast({ title: "Search Error", description: "An error occurred while searching for the user.", variant: "destructive" });
+    } finally {
+        setIsFindingUser(false);
     }
-    return null;
   };
 
-  const processFormSubmit = async (data: DelegateFormValues, targetUser: { uid: string, username: string }) => {
-     if (!mainAdminUser || !database) return;
+  const handleCreateDelegate = async (data: DelegateFormValues) => {
+    if (!foundUser) {
+        toast({ title: "Error", description: "No user selected to assign.", variant: "destructive" });
+        return;
+    }
+    await processFormSubmit(data, foundUser);
+  };
+  
+  const processFormSubmit = async (data: DelegateFormValues, targetUser: FoundUser) => {
+    if (!mainAdminUser || !database) return;
     setIsSubmitting(true);
     try {
       const updates: Record<string, any> = {};
@@ -153,14 +179,15 @@ export default function ManageDelegatesPage() {
       
       updates[`users/${targetUser.uid}/role`] = 'delegate';
       updates[`users/${targetUser.uid}/delegatePermissions`] = delegatePermissions;
+      updates[`users/${targetUser.uid}/whatsappNumber`] = data.whatsappNumber || null;
       
       await update(ref(database), updates);
 
       toast({ title: "Permissions Updated", description: `Permissions for ${targetUser.username} updated successfully.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
-      setIsCreateDialogOpen(false);
-      setIsEditDialogOpen(false);
-      setEditingDelegateUID(null);
-      form.reset({ targetUserEmail: "", accessScreens: {} });
+      
+      handleCloseCreateDialog();
+      handleCloseEditDialog();
+
     } catch (error) {
        toast({ title: "Error", description: "Failed to update permissions.", variant: "destructive" });
     } finally {
@@ -168,23 +195,11 @@ export default function ManageDelegatesPage() {
     }
   };
   
-  const handleCreateDelegate = async (data: DelegateFormValues) => {
-    const targetUser = await findUserByEmail(data.targetUserEmail);
-    if (!targetUser) {
-      toast({ title: "User Not Found", description: `No user found with email ${data.targetUserEmail}.`, variant: "destructive" });
-      return;
-    }
-    if (targetUser.uid === mainAdminUser?.uid) {
-      toast({ title: "Invalid Action", description: "You cannot delegate permissions to yourself.", variant: "destructive" });
-      return;
-    }
-    await processFormSubmit(data, targetUser);
-  };
-  
   const handleEditDelegate = (delegateUID: string, currentDelegate: DelegateAccessInfo) => {
     setEditingDelegateUID(delegateUID);
     form.reset({
       targetUserEmail: delegates[delegateUID]?.username || "",
+      whatsappNumber: currentDelegate.whatsappNumber || "",
       accessScreens: currentDelegate.accessScreens || {},
     });
     setIsEditDialogOpen(true);
@@ -194,11 +209,24 @@ export default function ManageDelegatesPage() {
     if (!editingDelegateUID) return;
     const delegateInfo = delegates[editingDelegateUID];
     if (!delegateInfo) return;
-
-    const mockTargetUser = { uid: editingDelegateUID, username: delegateInfo.username };
+    
+    // We don't have email in delegateInfo, but it's not needed for the update logic.
+    // The targetUser parameter just needs uid and username.
+    const mockTargetUser: FoundUser = { uid: editingDelegateUID, username: delegateInfo.username, email: '' };
     await processFormSubmit(data, mockTargetUser);
   };
 
+  const handleCloseCreateDialog = () => {
+    setIsCreateDialogOpen(false);
+    setFoundUser(null);
+    setUserEmailToFind('');
+    form.reset({ targetUserEmail: "", whatsappNumber: "", accessScreens: {} });
+  };
+  const handleCloseEditDialog = () => {
+    setIsEditDialogOpen(false);
+    setEditingDelegateUID(null);
+    form.reset({ targetUserEmail: "", whatsappNumber: "", accessScreens: {} });
+  };
 
   const confirmDeleteDelegate = (delegateUID: string) => {
     setDelegateToDeleteUID(delegateUID);
@@ -211,11 +239,12 @@ export default function ManageDelegatesPage() {
       const updates: Record<string, any> = {};
       updates[`users/${delegateToDeleteUID}/role`] = 'user'; // Revert role
       updates[`users/${delegateToDeleteUID}/delegatePermissions`] = null; // Remove permissions
+      updates[`users/${delegateToDeleteUID}/whatsappNumber`] = null; // Remove WhatsApp number
 
       await update(ref(database), updates);
       
       toast({ title: "Delegate Revoked", description: `Delegate access revoked successfully.` });
-      setDelegateToDeleteUID(null); // This will close the dialog
+      setDelegateToDeleteUID(null);
     } catch (error) {
       toast({ title: "Error", description: "Failed to revoke delegate access.", variant: "destructive" });
     } finally {
@@ -239,20 +268,13 @@ export default function ManageDelegatesPage() {
     return (
     <Form {...formContext}>
       <form onSubmit={formContext.handleSubmit(isEditMode ? handleUpdateDelegate : handleCreateDelegate)} className="space-y-6">
-        {!isEditMode ? (
-          <FormField name="targetUserEmail" control={formContext.control} render={({ field }) => (
+        <FormField name="whatsappNumber" control={formContext.control} render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="targetUserEmail" className="flex items-center"><Mail className="mr-2 h-4 w-4 text-muted-foreground" /> Target User's Email</FormLabel>
-              <FormControl><Input id="targetUserEmail" {...field} type="email" placeholder="Enter email of the user to delegate to" className="mt-1 bg-input/50 border-border/70 focus:border-accent" /></FormControl>
+              <FormLabel htmlFor="whatsappNumber" className="flex items-center"><WhatsappIcon className="mr-2 h-4 w-4 text-muted-foreground" /> Delegate's WhatsApp Number</FormLabel>
+              <FormControl><Input id="whatsappNumber" {...field} type="tel" placeholder="e.g. 923001234567" className="mt-1 bg-input/50 border-border/70 focus:border-accent" /></FormControl>
               <FormMessage />
             </FormItem>
-          )} />
-        ) : (
-           <FormItem>
-             <FormLabel className="flex items-center text-muted-foreground"><UserCog className="mr-2 h-4 w-4" /> Editing Permissions For:</FormLabel>
-              <p className="mt-1 p-2 bg-muted/30 rounded-md border border-border/50 text-sm text-foreground">{editingDelegateUID && delegates[editingDelegateUID]?.username}</p>
-            </FormItem>
-        )}
+        )} />
 
         <FormField
           control={formContext.control}
@@ -279,10 +301,7 @@ export default function ManageDelegatesPage() {
                       render={({ field }) => (
                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                           <FormControl>
-                            <Checkbox
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                           </FormControl>
                           <FormLabel className="font-normal text-sm">{screen.label}</FormLabel>
                         </FormItem>
@@ -297,7 +316,7 @@ export default function ManageDelegatesPage() {
         />
         
         <DialogFooter>
-          <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
+          <DialogClose asChild><Button type="button" variant="outline" onClick={isEditMode ? handleCloseEditDialog : handleCloseCreateDialog} disabled={isSubmitting}>Cancel</Button></DialogClose>
           <Button type="submit" className="neon-accent-bg" disabled={isSubmitting}>
             {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
             {isEditMode ? 'Save Changes' : 'Assign Delegate'}
@@ -322,11 +341,42 @@ export default function ManageDelegatesPage() {
     <div className="flex h-full flex-col space-y-8">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <PageTitle title="Manage Delegates" subtitle="Assign screen access permissions to other users." />
-        <Dialog open={isCreateDialogOpen} onOpenChange={(isOpen) => { setIsCreateDialogOpen(isOpen); if (!isOpen) form.reset({ targetUserEmail: "", accessScreens: {} }); }}>
-          <DialogTrigger asChild><Button className="neon-accent-bg w-full sm:w-auto"><PlusCircle className="mr-2 h-5 w-5" /> Assign New Delegate</Button></DialogTrigger>
-          <DialogContent className="glass-card sm:max-w-lg"><DialogHeader><DialogTitle className="text-xl text-accent">Assign New Delegate</DialogTitle><DialogDescription>Enter the target user's email and select their screen access.</DialogDescription></DialogHeader>{renderAccessForm(form, false)}</DialogContent>
-        </Dialog>
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="neon-accent-bg w-full sm:w-auto"><PlusCircle className="mr-2 h-5 w-5" /> Assign New Delegate</Button>
       </div>
+
+      <Dialog open={isCreateDialogOpen} onOpenChange={(isOpen) => { if (!isOpen) handleCloseCreateDialog(); }}>
+          <DialogContent className="glass-card sm:max-w-lg">
+             <DialogHeader>
+                <DialogTitle className="text-xl text-accent">Assign New Delegate</DialogTitle>
+                <DialogDescription>
+                    {foundUser ? "Set permissions for the found user." : "First, find a user by their registered email address."}
+                </DialogDescription>
+             </DialogHeader>
+             <Separator className="my-3"/>
+             
+             {!foundUser ? (
+                <div className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="find-user-email">User's Email</Label>
+                        <div className="flex gap-2">
+                            <Input id="find-user-email" type="email" placeholder="Enter user's email" value={userEmailToFind} onChange={(e) => setUserEmailToFind(e.target.value)} />
+                            <Button onClick={() => findUserByEmail(userEmailToFind)} disabled={isFindingUser || !userEmailToFind}>
+                                {isFindingUser ? <Loader2 className="animate-spin h-4 w-4"/> : <Search className="h-4 w-4"/>}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+             ) : (
+                <>
+                <div className="p-3 bg-muted/40 rounded-md border border-border/50">
+                    <p className="text-sm font-semibold text-foreground">{foundUser.username}</p>
+                    <p className="text-xs text-muted-foreground">{foundUser.email}</p>
+                </div>
+                {renderAccessForm(form, false)}
+                </>
+             )}
+          </DialogContent>
+        </Dialog>
 
       <GlassCard className="p-0 flex flex-1 flex-col overflow-hidden">
         <div className="p-4 border-b border-border/30"><h3 className="text-lg font-semibold text-foreground">Delegated Users ({delegateUIDs.length})</h3></div>
@@ -335,7 +385,7 @@ export default function ManageDelegatesPage() {
         : (
           <div className="overflow-x-auto">
             <Table className="min-w-[800px]">
-              <TableHeader><TableRow className="border-b-border/50 sticky top-0 bg-card/80 backdrop-blur-sm z-10"><TableHead>Delegated User</TableHead><TableHead>Accessible Screens</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow className="border-b-border/50 sticky top-0 bg-card/80 backdrop-blur-sm z-10"><TableHead>Delegated User</TableHead><TableHead>WhatsApp</TableHead><TableHead>Accessible Screens</TableHead><TableHead className="text-center">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {delegateUIDs.map((delegateUID) => {
                   const delegateInfo = delegates[delegateUID];
@@ -344,6 +394,7 @@ export default function ManageDelegatesPage() {
                   return (
                     <TableRow key={delegateUID} className="border-b-border/20 hover:bg-muted/20">
                       <TableCell className="font-medium text-foreground">{delegateInfo.username}<p className="text-xs text-muted-foreground">UID: {delegateUID.substring(0,10)}...</p></TableCell>
+                      <TableCell className="font-mono text-sm text-muted-foreground">{delegateInfo.whatsappNumber || 'Not Set'}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1 max-w-md">
                           {grantedScreens.slice(0, 4).map(screenKey => {
@@ -355,9 +406,15 @@ export default function ManageDelegatesPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <Dialog open={isEditDialogOpen && editingDelegateUID === delegateUID} onOpenChange={(isOpen) => { if (!isOpen) { setIsEditDialogOpen(false); setEditingDelegateUID(null); form.reset({ targetUserEmail: "", accessScreens: {} }); } }}>
+                        <Dialog open={isEditDialogOpen && editingDelegateUID === delegateUID} onOpenChange={(isOpen) => { if (!isOpen) handleCloseEditDialog() }}>
                           <DialogTrigger asChild><Button variant="ghost" size="icon" className="text-blue-400 hover:text-blue-300 h-8 w-8" onClick={() => handleEditDelegate(delegateUID, delegateInfo)}><Edit3 className="h-4 w-4" /></Button></DialogTrigger>
-                          <DialogContent className="glass-card sm:max-w-lg"><DialogHeader><DialogTitle className="text-xl text-accent">Edit Delegate: {delegateInfo.username}</DialogTitle><DialogDescription>Modify screen access for this delegated user.</DialogDescription></DialogHeader>{editingDelegateUID && renderAccessForm(form, true)}</DialogContent>
+                          <DialogContent className="glass-card sm:max-w-lg">
+                            <DialogHeader>
+                               <DialogTitle className="text-xl text-accent">Edit Delegate: {delegateInfo.username}</DialogTitle>
+                               <DialogDescription>Modify screen access and details for this delegated user.</DialogDescription>
+                            </DialogHeader>
+                            {renderAccessForm(form, true)}
+                          </DialogContent>
                         </Dialog>
                         <AlertDialog open={delegateToDeleteUID === delegateUID} onOpenChange={(isOpen) => !isOpen && setDelegateToDeleteUID(null)}>
                           <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="text-red-400 hover:text-red-300 h-8 w-8 ml-1" onClick={() => confirmDeleteDelegate(delegateUID)}><Trash2 className="h-4 w-4" /></Button></AlertDialogTrigger>
@@ -386,4 +443,3 @@ export default function ManageDelegatesPage() {
     </div>
   );
 }
-    

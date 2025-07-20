@@ -1,17 +1,19 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, off, query, limitToLast } from 'firebase/database';
-import { useToast } from '@/hooks/use-toast';
-import type { WalletTransaction, User } from '@/types';
+import { ref, onValue, off, query, limitToLast, get } from 'firebase/database';
+import type { User } from '@/types';
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Loader2, TrendingUp, Activity, UserCircle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useToast } from '@/hooks/use-toast';
+
 
 interface ClickLogEntry {
     id: string;
@@ -42,7 +44,29 @@ export default function TaskAnalysisPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [cachedUsers, setCachedUsers] = useState<Record<string, { username: string; avatarUrl: string | null }>>({});
+    const { toast } = useToast();
 
+    const fetchUserDetails = useCallback(async (userIds: Set<string>) => {
+        if (userIds.size === 0) return;
+        const newUsers: Record<string, { username: string; avatarUrl: string | null }> = {};
+        
+        const userFetchPromises = Array.from(userIds).map(uid => 
+            get(ref(database, `users/${uid}`)).then(snap => ({ uid, data: snap.val() }))
+        );
+        
+        try {
+            const results = await Promise.all(userFetchPromises);
+            results.forEach(({ uid, data }) => {
+                newUsers[uid] = { username: data?.username || `User ${uid.slice(0, 4)}`, avatarUrl: data?.avatarUrl || null };
+            });
+            
+            setCachedUsers(prev => ({...prev, ...newUsers}));
+        } catch (err: any) {
+            console.error("Failed to fetch user details for live clicks:", err);
+            toast({ title: "User Data Error", description: "Could not fetch details for some users in the live feed.", variant: "destructive" });
+        }
+    }, [toast]);
+    
     useEffect(() => {
         if (!database) {
             setError("Database service is not available.");
@@ -60,7 +84,7 @@ export default function TaskAnalysisPage() {
             setError("Could not load aggregate click data.");
         });
 
-        const liveClicksListener = onValue(liveClicksRef, async (snapshot) => {
+        const liveClicksListener = onValue(liveClicksRef, (snapshot) => {
             if (!snapshot.exists()) {
                 setLiveClicks([]);
                 setIsLoading(false);
@@ -72,28 +96,21 @@ export default function TaskAnalysisPage() {
             
             const userIdsToFetch = new Set<string>();
             loadedClicks.forEach(click => {
-                if (click.userId && !cachedUsers[click.userId]) {
+                if ('userId' in click && click.userId && !cachedUsers[click.userId]) {
                     userIdsToFetch.add(click.userId);
                 }
             });
 
-            const newUsers: Record<string, { username: string; avatarUrl: string | null }> = {};
             if (userIdsToFetch.size > 0) {
-                const userFetchPromises = Array.from(userIdsToFetch).map(uid => 
-                    get(ref(database, `users/${uid}`)).then(snap => ({ uid, data: snap.val() }))
-                );
-                const results = await Promise.all(userFetchPromises);
-                results.forEach(({ uid, data }) => {
-                    newUsers[uid] = { username: data?.username || `User ${uid.slice(0, 4)}`, avatarUrl: data?.avatarUrl || null };
-                });
-                setCachedUsers(prev => ({ ...prev, ...newUsers }));
+                fetchUserDetails(userIdsToFetch);
             }
-            
+
             const clicksWithUserData = loadedClicks.map((click): ClickLogEntry => {
-                const userProfile = cachedUsers[click.userId] || newUsers[click.userId];
-                return {
+                 const userId = (click as any).userId;
+                 const userProfile = cachedUsers[userId] || (userId ? { username: `User ${userId.slice(0, 4)}`, avatarUrl: null } : null);
+                 return {
                     ...click,
-                    user: userProfile ? { id: click.userId, ...userProfile } : null
+                    user: userId && userProfile ? { id: userId, ...userProfile } : null
                 };
             }).sort((a, b) => b.timestamp - a.timestamp);
 
@@ -109,7 +126,7 @@ export default function TaskAnalysisPage() {
             off(clicksRef, 'value', clicksListener);
             off(liveClicksRef, 'value', liveClicksListener);
         };
-    }, [cachedUsers]);
+    }, [fetchUserDetails, cachedUsers]); // Re-run if fetchUserDetails function instance changes
 
     const totalClicks = Object.values(clickStats).reduce((sum, count) => sum + count, 0);
     
@@ -166,7 +183,7 @@ export default function TaskAnalysisPage() {
                                                         {click.user ? click.user.username.charAt(0) : <UserCircle />}
                                                     </AvatarFallback>
                                                 </Avatar>
-                                                <span>{click.user?.username || 'Unknown User'}</span>
+                                                <span>{cachedUsers[click.user?.id || '']?.username || 'Loading...'}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell>{getTaskDisplayName(click.task)}</TableCell>
@@ -178,8 +195,8 @@ export default function TaskAnalysisPage() {
                             </TableBody>
                         </Table>
                     ) : (
-                        <div className="flex items-center justify-center h-full text-muted-foreground">
-                            No live click data available.
+                        <div className="flex items-center justify-center h-full text-muted-foreground p-10">
+                            No live click data available. Waiting for user activity...
                         </div>
                     )}
                 </ScrollArea>
@@ -187,3 +204,4 @@ export default function TaskAnalysisPage() {
         </div>
     );
 }
+

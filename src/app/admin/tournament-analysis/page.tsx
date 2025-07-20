@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 
 import GlassCard from '@/components/core/glass-card';
 import PageTitle from '@/components/core/page-title';
-import { Loader2, Gamepad2, AlertCircle, Calendar, CheckCircle, BarChart, Package } from 'lucide-react';
+import { Loader2, Gamepad2, AlertCircle, Calendar, CheckCircle, BarChart, Package, MessageSquare as WhatsappIcon } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { User, Tournament, PlayerResultStats } from '@/types';
@@ -21,6 +21,7 @@ interface DelegateTournamentStats {
   delegateName: string;
   delegateUid: string;
   delegateAvatar: string | null;
+  delegateWhatsapp: string | null;
   totalCreated: number;
   weeklyCreated: number;
   monthlyCreated: number;
@@ -91,6 +92,7 @@ export default function TournamentAnalysisPage() {
                     delegateUid,
                     delegateName: delegateInfo?.username || `Admin (${delegateUid.substring(0,6)})`,
                     delegateAvatar: delegateInfo?.avatarUrl || null,
+                    delegateWhatsapp: delegateInfo?.whatsappNumber || null,
                     totalCreated: 0,
                     weeklyCreated: 0,
                     monthlyCreated: 0,
@@ -190,7 +192,7 @@ export default function TournamentAnalysisPage() {
                         </Avatar>
                         <div>
                             <h3 className="text-lg font-bold text-foreground">{delegate.delegateName}</h3>
-                            <p className="text-xs text-muted-foreground font-mono">{delegate.delegateUid.substring(0,12)}...</p>
+                            <p className="text-xs text-muted-foreground font-mono flex items-center gap-1"><WhatsappIcon className="h-3 w-3" />{delegate.delegateWhatsapp || 'N/A'}</p>
                         </div>
                     </div>
                     <Separator className="bg-border/50 mb-4"/>

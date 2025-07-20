@@ -27,6 +27,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { ref, set, query, orderByChild, equalTo, get, runTransaction, push, update } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import type { User as AppUserType, GlobalSettings, WalletTransaction } from '@/types';
+import { getGeolocationData, getClientIpAddress } from '@/lib/firebase/geolocation';
 
 const signupSchema = z.object({
   username: z.string().min(3, { message: "Username must be at least 3 characters" }).regex(/^[a-zA-Z0-9_]+$/, { message: "Username can only contain letters, numbers, and underscores" }),
@@ -129,6 +130,11 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
       const firebaseUser = userCredential.user;
 
       if (firebaseUser) {
+        
+        // --- Geolocation Logic on Signup ---
+        const ipAddress = await getClientIpAddress();
+        const locationData = ipAddress ? await getGeolocationData(ipAddress) : null;
+        
         // Step 5: Prepare new user data for Realtime Database
         const newUserReferralCode = generateReferralCode(data.username);
         const bonusForNewUser = (referrerUser && globalSettings?.shareAndEarnEnabled && referralBonusAmount > 0) ? referralBonusAmount : 0;
@@ -153,6 +159,7 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
           appliedReferralCode: (referrerUser && globalSettings?.shareAndEarnEnabled && enteredReferralCode) ? enteredReferralCode : null,
           referralBonusReceived: bonusForNewUser,
           totalReferralCommissionsEarned: 0,
+          location: locationData, // Save location data
         };
         
         // Step 6: Atomically save user data and claim username
@@ -354,3 +361,5 @@ export function SignupForm({ initialReferralCode }: SignupFormProps) {
     </Form>
   );
 }
+
+  
