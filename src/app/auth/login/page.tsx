@@ -5,14 +5,26 @@ import { useState, useEffect } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import GlassCard from "@/components/core/glass-card";
 import Link from "next/link";
-import { Gamepad2 } from "lucide-react";
+import { KeyRound } from "lucide-react";
 import { database } from "@/lib/firebase/config";
 import { ref, onValue } from "firebase/database";
 import AppLogo from "@/components/core/AppLogo";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [appName, setAppName] = useState('Arena Ace');
   const [appLogoUrl, setAppLogoUrl] = useState('');
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // If user is already logged in, redirect them away from the login page
+    if (!loading && user) {
+      router.push('/');
+    }
+  }, [user, loading, router]);
+
 
   useEffect(() => {
     if (!database) return;
@@ -32,9 +44,9 @@ export default function LoginPage() {
       <AppLogo appName={appName} appLogoUrl={appLogoUrl} className="absolute top-6 left-6 text-foreground/80 hover:text-accent transition-colors z-10" />
       <GlassCard className="w-full max-w-md p-8 md:p-10 shadow-2xl border-accent/20">
         <div className="text-center mb-8">
-          <Gamepad2 className="mx-auto h-16 w-16 text-accent mb-4 neon-accent-text"/>
-          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 neon-accent-text">Access the Arena</h1>
-          <p className="text-muted-foreground">Log in to continue your conquest.</p>
+          <KeyRound className="mx-auto h-16 w-16 text-accent mb-4 neon-accent-text"/>
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 neon-accent-text">Login to Arena Ace</h1>
+          <p className="text-muted-foreground">Access your eSports profile, track stats, and join exclusive tournaments.</p>
         </div>
         <LoginForm />
       </GlassCard>

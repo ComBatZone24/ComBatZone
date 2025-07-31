@@ -10,7 +10,8 @@ import { Gift, CheckCircle, Upload, Loader2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { getDatabase, ref as dbRef, set, serverTimestamp, get, runTransaction, push } from "firebase/database";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
+import { getDatabase, ref as dbRef, set, serverTimestamp, get, push } from "firebase/database";
 import { verifyYoutubeSubscription } from '@/ai/flows/verify-youtube-subscription-flow';
 
 interface YoutubePromotionTaskProps {
@@ -18,13 +19,13 @@ interface YoutubePromotionTaskProps {
 }
 
 export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskProps) {
-    const { user, refreshUser } = useAuth();
+    const { user } = useAuth();
     const { toast } = useToast();
     const [file, setFile] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState<'idle' | 'verifying' | 'success' | 'failed'>('idle');
-    const [verificationResult, setVerificationResult] = useState<string | null>(null);
+    const [uploadStatus, setUploadStatus] = useState<'idle' | 'submitting' | 'submitted'>('idle');
+    const [submissionMessage, setSubmissionMessage] = useState<string | null>(null);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles && acceptedFiles.length > 0) {
@@ -36,7 +37,7 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
             };
             reader.readAsDataURL(currentFile);
             setUploadStatus('idle');
-            setVerificationResult(null);
+            setSubmissionMessage(null);
         }
     }, []);
 
@@ -46,14 +47,14 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
         multiple: false
     });
 
-    const handleVerify = async () => {
+    const handleSubmitForReview = async () => {
         if (!file || !user) {
-            toast({ title: "Error", description: "Please select a screenshot and ensure you are logged in.", variant: "destructive" });
+            toast({ title: "Error", description: "Please select a screenshot file and ensure you are logged in.", variant: "destructive" });
             return;
         }
         setIsProcessing(true);
-        setUploadStatus('verifying');
-        setVerificationResult(null);
+        setUploadStatus('submitting');
+        setSubmissionMessage(null);
 
         try {
             const base64Data = await new Promise<string>((resolve, reject) => {
@@ -63,52 +64,46 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
                 reader.onerror = (error) => reject(error);
             });
 
+            // Run AI verification first to get a recommendation
             const aiResult = await verifyYoutubeSubscription({
                 screenshotDataUri: base64Data,
                 expectedChannelName: settings.youtubeChannelName,
             });
 
             const db = getDatabase();
-            const userRef = dbRef(db, `users/${user.id}`);
-            const submissionRef = push(dbRef(db, `users/${user.id}/pendingYoutubeSubmissions`));
+            const submissionRef = push(dbRef(db, `youtubeSubmissions`));
 
-            if (aiResult.verificationPassed) {
-                const userSnap = await get(userRef);
-                const userData = userSnap.val();
+            const submissionData = {
+                submissionId: submissionRef.key,
+                userId: user.id,
+                username: user.username,
+                screenshotUrl: '', // This will be updated after upload
+                status: 'pending', // All submissions are pending admin approval now
+                submittedAt: serverTimestamp(),
+                aiRecommendation: aiResult.verificationPassed ? 'approve' : 'reject',
+                aiReason: aiResult.reason,
+            };
+            
+            // Upload screenshot to Firebase Storage
+            const storage = getStorage();
+            const screenshotFileRef = storageRef(storage, `youtube-submissions/${user.id}/${submissionRef.key}.jpg`);
+            const uploadResult = await uploadString(screenshotFileRef, base64Data, 'data_url');
+            const downloadUrl = await getDownloadURL(uploadResult.ref);
+            
+            submissionData.screenshotUrl = downloadUrl;
 
-                if (userData && userData.youtubeSubscriptionAwarded) {
-                    setVerificationResult("Already Rewarded: You have already received points for this task.");
-                    setUploadStatus('failed');
-                    toast({ title: "Already Rewarded", description: "You can only complete this task once.", variant: "destructive" });
-                    await set(submissionRef, { status: 'already_rewarded', submittedAt: serverTimestamp(), reason: 'User already claimed reward.' });
-                } else {
-                    const pointsToAward = settings.pointsForSubscription || 0;
-                    
-                    await runTransaction(userRef, (currentUserData) => {
-                        if (currentUserData) {
-                            currentUserData.watchAndEarnPoints = (currentUserData.watchAndEarnPoints || 0) + pointsToAward;
-                            currentUserData.youtubeSubscriptionAwarded = true;
-                        }
-                        return currentUserData;
-                    });
+            await set(submissionRef, submissionData);
 
-                    await set(submissionRef, { status: 'approved_paid', submittedAt: serverTimestamp(), reason: `AI verification passed. Awarded ${pointsToAward} points.` });
-                    
-                    setVerificationResult(`Verification successful! ${pointsToAward} points awarded.`);
-                    setUploadStatus('success');
-                    toast({ title: "Verified & Rewarded!", description: `You have been awarded ${pointsToAward} points.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
-                    refreshUser(); // Refresh user data in context to hide the task
-                }
-            } else {
-                setVerificationResult(`Verification Failed: ${aiResult.reason}`);
-                setUploadStatus('failed');
-                toast({ title: "Verification Failed", description: aiResult.reason, variant: "destructive" });
-                await set(submissionRef, { status: 'rejected', submittedAt: serverTimestamp(), reason: aiResult.reason });
-            }
+            setUploadStatus('submitted');
+            toast({ title: "Submission Received", description: "Your subscription screenshot has been submitted for review. Please wait for admin approval.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
+            setSubmissionMessage("Your submission is pending review.");
+            setFile(null);
+            setPreview(null);
+        
         } catch (error: any) {
-            console.error("Verification error:", error);
-            setVerificationResult("An error occurred during verification.");
-            setUploadStatus('failed');
+            console.error("Submission error:", error);
+            setUploadStatus('idle');
+            setSubmissionMessage("An error occurred during submission.");
             toast({ title: "Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
         } finally {
             setIsProcessing(false);
@@ -136,7 +131,7 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
             
             <div className="text-center p-4 rounded-lg bg-accent/10 border border-accent/30">
                 <p className="font-bold text-accent flex items-center justify-center gap-2"><Gift className="h-5 w-5"/> Reward: {settings.pointsForSubscription} Points</p>
-                <p className="text-xs text-muted-foreground mt-1">Subscribe to the channel, take a screenshot showing you are "Subscribed", and upload it below.</p>
+                <p className="text-xs text-muted-foreground mt-1">Subscribe, take a screenshot showing you're "Subscribed", and upload for admin approval.</p>
             </div>
             
              <div {...getRootProps()} className={`p-6 border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${isDragActive ? 'border-accent bg-accent/20' : 'border-border/50 hover:border-accent'}`}>
@@ -156,17 +151,16 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
                 </div>
             )}
             
-            <Button onClick={handleVerify} disabled={!file || isProcessing || uploadStatus === 'success'} className="w-full">
+            <Button onClick={handleSubmitForReview} disabled={!file || isProcessing || uploadStatus === 'submitted'} className="w-full">
                 {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <CheckCircle className="mr-2 h-4 w-4"/>}
-                {uploadStatus === 'idle' && 'Verify Screenshot'}
-                {uploadStatus === 'verifying' && 'Verifying with AI...'}
-                {uploadStatus === 'success' && 'Verified!'}
-                {uploadStatus === 'failed' && 'Try Again'}
+                {uploadStatus === 'idle' && 'Submit for Review'}
+                {uploadStatus === 'submitting' && 'Submitting...'}
+                {uploadStatus === 'submitted' && 'Submitted Successfully!'}
             </Button>
 
-            {verificationResult && (
-                 <div className={`p-4 rounded-md text-sm ${uploadStatus === 'success' ? 'bg-green-500/10 text-green-300' : 'bg-destructive/10 text-destructive'}`}>
-                    <p className="font-semibold">{verificationResult}</p>
+            {submissionMessage && (
+                 <div className={`p-4 rounded-md text-sm bg-blue-500/10 text-blue-300`}>
+                    <p className="font-semibold">{submissionMessage}</p>
                  </div>
             )}
         </div>

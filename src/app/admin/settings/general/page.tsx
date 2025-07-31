@@ -24,13 +24,15 @@ const initialGeneralSettings: {
   limitRegistrationsEnabled: boolean; 
   maxRegistrations: number | null;
   globalChatEnabled: boolean;
-  clickAndEarnEnabled: boolean; // Added this new setting
+  clickAndEarnEnabled: boolean;
   feyorraLogoUrl: string;
   rollerCoinTaskEnabled: boolean;
   feyorraTaskEnabled: boolean;
   mobileLoadEnabled: boolean;
   shopEnabled: boolean;
   timebucksTaskSettings: { enabled: boolean; referralUrl: string; };
+  linkvertiseTaskEnabled: boolean; // Added
+  linkvertiseUrl: string; // Added
   customTaskCardSettings: { enabled: boolean; imageUrl: string; title: string; description: string; buttonText: string; buttonLink: string; };
   feyorraReferralUrl?: string;
   rollerCoinReferralUrl?: string;
@@ -41,7 +43,7 @@ const initialGeneralSettings: {
   limitRegistrationsEnabled: false,
   maxRegistrations: 1000,
   globalChatEnabled: true,
-  clickAndEarnEnabled: true, // Default to true
+  clickAndEarnEnabled: true,
   feyorraLogoUrl: '',
   rollerCoinTaskEnabled: true,
   feyorraTaskEnabled: true,
@@ -51,6 +53,8 @@ const initialGeneralSettings: {
     enabled: true,
     referralUrl: 'https://timebucks.com/?ref=YOUR_REF_ID',
   },
+  linkvertiseTaskEnabled: true, // Default to true
+  linkvertiseUrl: '', // Default to empty
   customTaskCardSettings: {
       enabled: true,
       imageUrl: 'https://placehold.co/600x300.png?text=Custom+Task',
@@ -101,6 +105,8 @@ export default function AdminGeneralSettingsPage() {
                 ...initialGeneralSettings.timebucksTaskSettings,
                 ...(fetchedGlobalSettings.timebucksTaskSettings || {}),
             },
+            linkvertiseTaskEnabled: fetchedGlobalSettings.linkvertiseTaskEnabled ?? initialGeneralSettings.linkvertiseTaskEnabled,
+            linkvertiseUrl: fetchedGlobalSettings.linkvertiseUrl || initialGeneralSettings.linkvertiseUrl,
             customTaskCardSettings: {
                 ...initialGeneralSettings.customTaskCardSettings,
                 ...(fetchedGlobalSettings.customTaskCardSettings || {}),
@@ -183,6 +189,8 @@ export default function AdminGeneralSettingsPage() {
         mobileLoadEnabled: generalSettings.mobileLoadEnabled,
         shopEnabled: generalSettings.shopEnabled,
         timebucksTaskSettings: generalSettings.timebucksTaskSettings,
+        linkvertiseTaskEnabled: generalSettings.linkvertiseTaskEnabled,
+        linkvertiseUrl: generalSettings.linkvertiseUrl,
         customTaskCardSettings: generalSettings.customTaskCardSettings,
         rollerCoinReferralUrl: generalSettings.rollerCoinReferralUrl,
         feyorraReferralUrl: generalSettings.feyorraReferralUrl,
@@ -354,6 +362,25 @@ export default function AdminGeneralSettingsPage() {
             <div className="space-y-6">
                 
                 <SwitchField 
+                    id="linkvertiseTaskEnabled"
+                    label="Linkvertise Task"
+                    checked={generalSettings.linkvertiseTaskEnabled}
+                    onCheckedChange={(val) => handleInputChange('linkvertiseTaskEnabled', val)}
+                    description="Enable or disable the Linkvertise task card."
+                    icon={LinkIconLucide}
+                />
+                <InputField
+                    id="linkvertiseUrl"
+                    label="Linkvertise URL"
+                    value={generalSettings.linkvertiseUrl || ''}
+                    onChange={(e) => handleInputChange('linkvertiseUrl', e.target.value)}
+                    placeholder="https://link-to.net/..."
+                    icon={LinkIconLucide}
+                />
+
+                <Separator className="my-2 bg-border/50" />
+
+                <SwitchField 
                     id="feyorraTaskEnabled"
                     label="Feyorra Tasks"
                     checked={generalSettings.feyorraTaskEnabled}
@@ -477,7 +504,7 @@ interface InputFieldProps {
   description?: string;
   icon?: React.ElementType;
   step?: string;
-  min?: string;
+  min?: string | number;
 }
 
 const InputField: React.FC<InputFieldProps> = ({ id, label, value, onChange, type = "text", placeholder, description, icon: Icon, step, min }) => (
@@ -500,4 +527,3 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, value, onChange, typ
     {description && <p className="text-xs text-muted-foreground px-1">{description}</p>}
   </div>
 );
-

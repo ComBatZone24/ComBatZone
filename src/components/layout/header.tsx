@@ -95,6 +95,15 @@ const UserNav = ({ isLoadingAuth }: { isLoadingAuth: boolean }) => {
               <p className="text-xs leading-none text-muted-foreground">{appUser.email}</p>
             </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {(appUser.role === 'admin' || appUser.role === 'delegate') && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/admin/dashboard" className="cursor-pointer"><LayoutDashboard className="mr-2 h-4 w-4" /><span>Admin Panel</span></Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem asChild>
             <Link href="/profile" className="cursor-pointer"><UserCircle className="mr-2 h-4 w-4" /><span>Profile</span></Link>
           </DropdownMenuItem>

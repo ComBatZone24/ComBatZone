@@ -3,7 +3,7 @@
 export interface User {
   id: string;
   username: string;
-  email: string;
+  email?: string;
   phone: string | null;
   whatsappNumber?: string; // Dedicated WhatsApp number
   wallet: number;
@@ -20,15 +20,10 @@ export interface User {
   gameName?: string | null;
   referralCode?: string | null;
   appliedReferralCode?: string | null;
+  referredByDelegate?: string | null; // UID of the referring delegate
   referralBonusReceived?: number;
   totalReferralCommissionsEarned?: number;
   watchAndEarnPoints?: number;
-  dailyClickAndEarn?: {
-    date: string; // YYYY-MM-DD format
-    clickCount: number;
-    dailyClickTarget: number; // The target for the day (e.g., 40, 98)
-    isTargetCompleted: boolean;
-  };
   youtubeSubscriptionAwarded?: boolean;
   delegatePermissions?: {
     accessScreens: Record<string, boolean>;
@@ -40,14 +35,16 @@ export interface User {
     country_flag?: string;
     isp?: string;
   } | null;
-  userClickAndEarnClaims?: Record<string, number>;
-  pendingYoutubeSubmissions?: Record<string, {
-      screenshotUrl: string;
-      status: 'pending' | 'approved_paid' | 'rejected' | 'already_rewarded';
-      submittedAt: any; // serverTimestamp
-      reason?: string;
-  }>;
-  completedCpaOffers?: Record<string, boolean>;
+  userClickAndEarnClaims?: Record<string, number>; // linkId: timestamp
+  completedCpaOffers?: Record<string, boolean>; // offerUrlId (base64): true
+  cpaMilestoneProgress?: { // New
+    count: number;
+  };
+  dailyClickAndEarn?: {
+    date: string; // YYYY-MM-DD
+    clickCount: number;
+    batchCooldownUntil?: number; // Timestamp
+  }
 }
 
 export interface Tournament {
@@ -83,7 +80,7 @@ export interface TournamentPlayer {
   kills: number;
   avatarUrl?: string | null; // App avatar
   joinTime: string; // ISO string
-  teamMembers?: Array<{ gameName: string, uid:string }>;
+  teamMembers?: Array<{ gameName: string; uid:string }>;
 }
 
 export interface ChatMessage {
@@ -254,8 +251,10 @@ export interface InactivityPolicy {
 export interface RedeemCodeEntry {
   amount: number;
   isUsed: boolean;
-  usedBy: string | null; // UID of the user who used it
+  usedBy: string | null; 
   createdAt: string; // ISO string
+  createdBy?: string; // UID of admin/delegate who created it
+  createdByName?: string; // Name of admin/delegate
   maxUses: number;
   timesUsed: number;
   claimedBy: { [uid: string]: string }; // Maps user UID to ISO timestamp
@@ -308,12 +307,13 @@ export interface UserNotification {
 
 export interface AdsterraSettings {
   enabled: boolean;
-  directLinks: string[]; // Changed to simple string array for reliability
-  popupsEnabled: boolean;
-  popupMinInterval: number; // minutes
-  popupMaxInterval: number; // minutes
-  buttonAdPlacements?: Record<string, boolean>; // e.g., { "tournament_join_now": true }
+  directLinks?: string[]; // Made optional and an array
+  popupsEnabled?: boolean;
+  popupMinInterval: number; // in minutes
+  popupMaxInterval: number; // in minutes
+  buttonAdPlacements?: Record<string, boolean>;
 }
+
 
 export interface ClickAndEarnLink {
   id: string;
@@ -384,6 +384,7 @@ export interface CloudinaryUploadResult {
 export interface StepAndEarnSettings {
   pointsPerStep: number;
   adViewsToClaim: number;
+  requireVpn: boolean;
 }
 
 export interface AppUpdateSettings {
@@ -393,11 +394,6 @@ export interface AppUpdateSettings {
     updateMessage: string;
 }
 
-export interface ClickMilestone {
-    clicks: number;
-    points: number;
-}
-
 export interface CpaGripSettings {
   enabled: boolean;
   title: string;
@@ -405,6 +401,7 @@ export interface CpaGripSettings {
   offerUrls: string[];
   points: number;
   postbackKey: string;
+  requiredCompletions: number; // New
 }
 
 export interface GlobalSettings {
@@ -427,9 +424,17 @@ export interface GlobalSettings {
   shopEnabled?: boolean; // New setting for the shop
   dailyUserLimit?: number;
   
-  // Click and Earn Rates
-  clickMilestones?: ClickMilestone[];
+  // Daily Ad Task settings
+  dailyAdTaskReward?: number;
+  dailyAdTaskSettings?: {
+    stayDurationSeconds: number;
+    linkRepeatHours: number;
+    postRewardCooldownSeconds: number;
+  };
+  
   pkrPerPoint?: number;
+  dailyTargetClicks?: number;
+  dailyTargetReward?: number;
   
   clickAndEarnTitle?: string;
   clickAndEarnDescription?: string;
@@ -438,6 +443,8 @@ export interface GlobalSettings {
   // Task URLs
   feyorraReferralUrl?: string;
   rollerCoinReferralUrl?: string;
+  linkvertiseTaskEnabled?: boolean;
+  linkvertiseUrl?: string;
 
   // Contact & Social
   contactWhatsapp: string[]; // Changed to array

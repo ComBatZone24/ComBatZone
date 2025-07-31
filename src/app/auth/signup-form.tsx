@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -18,9 +19,13 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectSe
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { countryCodes } from "@/lib/country-codes";
 
-// Server Action
-import { signupUser } from "@/app/auth/actions";
+// Firebase
+import { auth, database } from '@/lib/firebase/config';
+import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
+import { ref, set, get, query, orderByChild, equalTo, update } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
+import type { User as AppUserType, WalletTransaction } from '@/types';
+import { getGeolocationData, getClientIpAddress } from '@/lib/firebase/geolocation';
 
 // Form validation schema
 const signupSchema = z.object({
@@ -40,6 +45,13 @@ const signupSchema = z.object({
 });
 
 type SignupFormValues = z.infer<typeof signupSchema>;
+
+// Referral code generator
+const generateReferralCode = (username: string) => {
+  const namePart = username.substring(0, 4).toUpperCase().replace(/\s+/g, '');
+  const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `${namePart}${randomSuffix}`;
+};
 
 const commonCountryCodes = [
     { name: 'Pakistan', dial_code: '+92', code: 'PK' },
@@ -72,9 +84,7 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
       signature: "",
     },
   });
-  
-  // No longer need to check username availability on the client side.
-  // The server action will handle this.
+
   const nextStep = async () => {
     let fieldsToValidate: (keyof SignupFormValues)[] = [];
     if (step === 1) fieldsToValidate = ["username"];
@@ -83,6 +93,13 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
 
     const isValid = await form.trigger(fieldsToValidate);
     if (isValid) {
+        if (step === 1) {
+             const usernameSnapshot = await get(ref(database, `usernames/${form.getValues('username').toLowerCase()}`));
+            if (usernameSnapshot.exists()) {
+                form.setError("username", { type: "manual", message: "Username is already taken." });
+                return;
+            }
+        }
         setStep(prev => prev + 1);
     }
   };
@@ -92,19 +109,98 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
   async function onSubmit(data: SignupFormValues) {
     if (step !== 4) return;
     setIsLoading(true);
+    let firebaseUser = null; 
 
     try {
-        const result = await signupUser(data);
+      if (!database) throw new Error("Database service is not initialized.");
+      
+      const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+      firebaseUser = userCredential.user;
 
-        if (!result.success) {
-            throw new Error(result.error);
+      const locationData = await getGeolocationData(await getClientIpAddress());
+      const selectedDialCode = data.countryCode.split('-')[0];
+      const ownReferralCode = generateReferralCode(data.username);
+
+      const newUserRecord: AppUserType = {
+        id: firebaseUser.uid,
+        username: data.username,
+        email: data.email,
+        phone: `${selectedDialCode}${data.phone}`,
+        wallet: 0,
+        tokenWallet: 0,
+        role: 'user',
+        isActive: true,
+        lastLogin: new Date().toISOString(),
+        onlineStreak: 1,
+        createdAt: new Date().toISOString(),
+        gameUid: data.gameUid,
+        gameName: data.username, 
+        referralCode: ownReferralCode,
+        appliedReferralCode: null,
+        referralBonusReceived: 0,
+        totalReferralCommissionsEarned: 0,
+        location: locationData,
+        watchAndEarnPoints: 0,
+      };
+
+      const updates: Record<string, any> = {};
+      
+      const usernameSnapshot = await get(ref(database, `usernames/${data.username.toLowerCase()}`));
+      if (usernameSnapshot.exists()) {
+          throw new Error("Username already taken");
+      }
+
+      if (data.referralCode?.trim()) {
+        const friendCode = data.referralCode.trim().toUpperCase();
+        if (friendCode !== ownReferralCode) {
+            const settingsRef = ref(database, 'globalSettings');
+            const settingsSnapshot = await get(settingsRef);
+            const settings = settingsSnapshot.val();
+            const bonusAmount = settings?.referralBonusAmount || 0;
+            
+            if (settings?.shareAndEarnEnabled && bonusAmount > 0) {
+                const referrerQuery = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(friendCode));
+                const referrerSnapshot = await get(referrerQuery);
+
+                if (referrerSnapshot.exists()) {
+                    let referrerId = '';
+                    let referrerData: AppUserType | null = null;
+                    referrerSnapshot.forEach(childSnapshot => {
+                        referrerId = childSnapshot.key!;
+                        referrerData = childSnapshot.val() as AppUserType;
+                    });
+
+                    if (referrerId && referrerId !== firebaseUser.uid) {
+                        newUserRecord.wallet += bonusAmount;
+                        newUserRecord.referralBonusReceived = bonusAmount;
+                        newUserRecord.appliedReferralCode = friendCode;
+                        
+                        updates[`/users/${referrerId}/wallet`] = (referrerData?.wallet || 0) + bonusAmount;
+                        updates[`/users/${referrerId}/totalReferralCommissionsEarned`] = (referrerData?.totalReferralCommissionsEarned || 0) + bonusAmount;
+                    }
+                }
+            }
         }
+      }
+      
+      updates[`/users/${firebaseUser.uid}`] = newUserRecord;
+      updates[`/usernames/${data.username.toLowerCase()}`] = firebaseUser.uid;
 
-        toast({ title: "Account Created!", description: "Welcome! You are now logged in.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
-        router.push('/');
+      await set(ref(database, `/users/${firebaseUser.uid}`), newUserRecord);
+      await set(ref(database, `/usernames/${data.username.toLowerCase()}`), firebaseUser.uid);
+
+      toast({ title: "Account Created!", description: "Welcome! You are now logged in.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
+      router.push('/');
 
     } catch (error: any) {
-      toast({ title: "Signup Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
+      if (firebaseUser) await deleteUser(firebaseUser).catch(e => console.error("Failed to clean up user on signup error:", e));
+      let errorMessage = "An unknown error occurred.";
+      if (error.code === 'auth/email-already-in-use') errorMessage = "This email is already registered.";
+      else if (error.message === "Username already taken") errorMessage = "This username is already taken. Please choose another one.";
+      else if (String(error.message).includes("PERMISSION_DENIED")) {
+        errorMessage = "Permission denied. Please check database rules or contact support.";
+      }
+      toast({ title: "Signup Failed", description: errorMessage, variant: "destructive" });
       setStep(1); 
     } finally {
       setIsLoading(false);

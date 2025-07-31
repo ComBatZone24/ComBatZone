@@ -5,11 +5,12 @@ import { useState, FormEvent, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, X, Info, Loader2, AlertCircle, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { database } from '@/lib/firebase/config';
-import { ref, push, runTransaction } from 'firebase/database';
+import { ref, push, runTransaction, get, update, serverTimestamp } from 'firebase/database';
 import type { WithdrawRequest, User as AppUserType, WalletTransaction, GlobalSettings } from '@/types';
 import type { User as FirebaseUser } from 'firebase/auth';
 import {
@@ -52,15 +53,12 @@ export default function WithdrawDialog({ firebaseUser, userProfile, onOpenChange
     setLocalError(null);
 
     if (!firebaseUser || !userProfile) {
-      setLocalError("You must be logged in and have a profile to make a withdrawal request.");
-      toast({ title: "Authentication Error", description: "Please log in.", variant: "destructive" });
+      setLocalError("You must be logged in to request a mobile load.");
       return;
     }
 
     const withdrawalAmount = parseFloat(amount);
     const userWalletBalance = Number(userProfile.wallet || 0);
-
-    console.log(`WithdrawDialog (Client): Validating. Attempting: ${withdrawalAmount}, Client-side available: ${userWalletBalance}`);
 
     if (isNaN(withdrawalAmount) || withdrawalAmount <= 0) {
       setLocalError("Please enter a valid amount to withdraw.");
@@ -70,138 +68,80 @@ export default function WithdrawDialog({ firebaseUser, userProfile, onOpenChange
       setLocalError(`Minimum withdrawal amount is Rs ${MIN_WITHDRAWAL_AMOUNT}.`);
       return;
     }
-    
     if (withdrawalAmount > userWalletBalance) {
-      console.error(`WithdrawDialog (Client): Validation FAILED. Withdrawal amount (${withdrawalAmount}) exceeds client-side wallet balance (${userWalletBalance}).`);
-      setLocalError("Withdrawal amount cannot exceed your current wallet balance.");
-      toast({ title: "Amount Error", description: "Withdrawal amount exceeds your current wallet balance. Please check the displayed available balance.", variant: "destructive" });
+      setLocalError("Withdrawal amount cannot exceed your wallet balance.");
       return;
     }
-
-    if (!method.trim()) {
-      setLocalError("Please specify your withdrawal method.");
-      return;
-    }
-    if (!accountNumber.trim()) {
-      setLocalError("Please enter your account number/IBAN.");
-      return;
-    }
-    if (!accountName.trim()) {
-      setLocalError("Please enter the account holder's name.");
+    if (!method.trim() || !accountNumber.trim() || !accountName.trim()) {
+      setLocalError("Please fill all payment detail fields.");
       return;
     }
 
     setIsSubmitting(true);
-    console.log(`WithdrawDialog (Client): Attempting to submit Firebase transaction. User: ${firebaseUser.uid}, Amount: ${withdrawalAmount}`);
-    console.log(`WithdrawDialog (Client): Client-side balance before transaction: ${userWalletBalance}`);
-
     try {
       if (!database) throw new Error("Firebase database not initialized");
 
       const userWalletRef = ref(database, `users/${firebaseUser.uid}/wallet`);
-      let initialTransactionId: string | null = null;
-
-      const walletUpdateResult = await runTransaction(userWalletRef, (currentBalance) => {
-        // --- DETAILED LOGGING INSIDE TRANSACTION ---
-        console.log(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): Transaction updater started.`);
-        console.log(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): Raw currentBalance from DB:`, currentBalance, `(Type: ${typeof currentBalance})`);
-        
-        const currentBalanceInDb = Number(currentBalance || 0);
-        console.log(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): Parsed numeric currentBalanceInDb: ${currentBalanceInDb}`);
-        
-        const numericWithdrawalAmount = Number(withdrawalAmount);
-        console.log(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): Numeric withdrawalAmount to check: ${numericWithdrawalAmount}`);
-
-        if (currentBalance === null) {
-            console.warn(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): User wallet node is null/missing in Firebase. Treating as 0.`);
-        }
-
-        if (currentBalanceInDb < numericWithdrawalAmount) {
-          console.warn(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): SERVER-SIDE CHECK FAILED: Aborting transaction. Server balance (${currentBalanceInDb}) is less than withdrawal amount (${numericWithdrawalAmount}).`);
-          return;
-        }
-        
-        const newBalance = currentBalanceInDb - numericWithdrawalAmount;
-        console.log(`WithdrawDialog (Firebase Tx - ${firebaseUser.uid}): SERVER-SIDE CHECK PASSED: Deducting ${numericWithdrawalAmount} from ${currentBalanceInDb}. New balance will be ${newBalance}.`);
-        return newBalance;
+      
+      const txResult = await runTransaction(userWalletRef, (currentBalance) => {
+        const numericBalance = Number(currentBalance || 0);
+        if (numericBalance < withdrawalAmount) return; // Abort
+        return numericBalance - withdrawalAmount;
       });
 
-      if (!walletUpdateResult.committed) {
-        console.warn("WithdrawDialog: Firebase transaction to deduct wallet balance did NOT commit. User:", firebaseUser.uid, "Amount:", withdrawalAmount, "Result:", walletUpdateResult);
-        setLocalError(null); 
-        toast({ 
-          title: "Submission Error", 
-          description: "Withdrawal failed. Your actual balance on the server might be too low, or there was a temporary issue. Please refresh your wallet to see the latest balance and try again. If the issue persists, contact support.", 
-          variant: "destructive",
-          duration: 8000,
-        });
-        setIsSubmitting(false);
-        return;
+      if (!txResult.committed) {
+        throw new Error("Could not update wallet balance. Insufficient funds on server or transaction conflict.");
       }
-      console.log("WithdrawDialog: Firebase transaction to deduct wallet balance COMMITTED successfully.");
-
-      const walletTransactionsRef = ref(database, `walletTransactions/${firebaseUser.uid}`);
+      
+      const walletTxRef = ref(database, `walletTransactions/${firebaseUser.uid}`);
       const newTransactionData: Omit<WalletTransaction, 'id'> = {
-        type: 'withdrawal',
+        type: 'shop_purchase_hold', // Reusing this type for hold logic
         amount: -withdrawalAmount,
-        status: 'pending', 
+        status: 'on_hold',
         date: new Date().toISOString(),
-        description: 'Withdrawal request (Funds on Hold)',
+        description: `Hold for Withdrawal Request to ${method}`,
       };
-      const newTransactionRef = await push(walletTransactionsRef, newTransactionData);
-      initialTransactionId = newTransactionRef.key;
+      const holdTransaction = await push(walletTxRef, newTransactionData);
 
-      if (!initialTransactionId) {
-        console.error("WithdrawDialog: Failed to get key for new transaction log. Attempting to reverse wallet deduction.");
+      if (!holdTransaction.key) {
+        // Rollback wallet deduction if logging hold tx fails
         await runTransaction(userWalletRef, (currentBalance) => (Number(currentBalance || 0)) + withdrawalAmount);
-        throw new Error("Failed to log withdrawal transaction. Amount deduction (if any) reversed. Please try again.");
+        throw new Error("Failed to log hold transaction. Wallet deduction reversed.");
       }
-      console.log("WithdrawDialog: Logged 'pending' withdrawal transaction successfully. ID:", initialTransactionId);
 
-      const withdrawalRequestData: Omit<WithdrawRequest, 'id' | 'processedDate' | 'adminNotes'> = {
+      const mobileLoadRequestsRef = ref(database, 'withdrawRequests'); // Correct path
+      const newRequestData: Omit<WithdrawRequest, 'id'> = {
         uid: firebaseUser.uid,
-        username: userProfile.username || firebaseUser.email || 'N/A',
-        amount: withdrawalAmount,
-        method: method.trim(),
-        accountNumber: accountNumber.trim(),
-        accountName: accountName.trim(),
+        username: userProfile.username || 'N/A',
+        amount: withdrawalAmount, // Submit the full amount, admin will handle fees
+        method,
+        accountNumber,
+        accountName,
         status: "pending",
         requestDate: new Date().toISOString(),
-        walletTransactionId: initialTransactionId, 
+        walletTransactionId: holdTransaction.key,
       };
-      const withdrawalRequestsRef = ref(database, 'withdrawRequests');
-      await push(withdrawalRequestsRef, withdrawalRequestData);
-      console.log("WithdrawDialog: Created withdrawal request in Firebase successfully.");
+      await push(mobileLoadRequestsRef, newRequestData);
 
       toast({
         title: "Withdrawal Request Submitted",
-        description: `Rs ${withdrawalAmount.toFixed(2)} has been put on hold from your wallet. Your request will be processed soon.`,
-        variant: "default",
+        description: `Your request for Rs ${withdrawalAmount.toFixed(2)} has been sent for processing.`,
         className: "bg-green-500/20 text-green-300 border-green-500/30",
       });
-      handleResetForm();
-      onOpenChange(false); 
+
+      onOpenChange(false);
       if (onSuccess) onSuccess();
 
-    } catch (err: any) {
-      console.error("WithdrawDialog: Error submitting withdrawal request:", err);
-      const dialogErrorMessage = err.message || "Could not submit withdrawal request.";
-      let toastDescription = dialogErrorMessage;
-      if (String(err.message).toLowerCase().includes('permission_denied')) {
-        toastDescription = "Permission Denied. Cannot submit withdrawal. Please check Firebase rules.";
-      }
-      if (!toastDescription.includes("Your actual balance on the server might be too low")) {
-          setLocalError(dialogErrorMessage); 
-      }
-      if (!toastDescription.includes("Your actual balance on the server might be too low")) {
-          toast({ title: "Submission Error", description: toastDescription, variant: "destructive" });
-      }
+    } catch (error: any) {
+      setLocalError(error.message || "An unexpected error occurred.");
+      toast({ title: "Submission Failed", description: error.message, variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (!userProfile) return <p className="p-4 text-muted-foreground">User profile not available for withdrawal.</p>;
+
+  if (!userProfile) return <p className="p-4 text-muted-foreground">User profile not available.</p>;
 
   const withdrawMessage = `Hi, I need help with my withdrawal request. My User ID is: ${userProfile.id || 'N/A'}`;
   const withdrawWhatsappUrl = `${settings.contactWhatsapp}?text=${encodeURIComponent(withdrawMessage)}`;
@@ -256,6 +196,15 @@ export default function WithdrawDialog({ firebaseUser, userProfile, onOpenChange
 
         {localError && (
           <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{localError}</AlertDescription></Alert>
+        )}
+        
+        {userProfile.referredByDelegate && (
+             <Alert variant="default" className="bg-primary/10 border-primary/30">
+                <Info className="h-4 w-4 !text-primary" />
+                <AlertDescription className="!text-primary/80 text-xs">
+                    A 5% processing fee will be deducted from the withdrawal amount.
+                </AlertDescription>
+            </Alert>
         )}
 
         <Alert variant="default" className="bg-primary/10 border-primary/30">

@@ -1,6 +1,7 @@
 
 import type { Metadata, Viewport } from 'next';
 import { Orbitron, Poppins } from 'next/font/google'; // Import Poppins
+import Script from 'next/script'; // Import the Script component
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import AppShell from '@/components/layout/AppShell';
@@ -12,6 +13,7 @@ import { FloatingChatProvider } from '@/context/FloatingChatContext';
 import { AdProvider } from '@/context/AdContext';
 import { SettingsProvider } from '@/context/SettingsContext';
 import { UpdateProvider } from '@/context/UpdateContext'; // Import UpdateProvider
+import LinkvertiseScript from '@/components/core/LinkvertiseScript';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -128,6 +130,7 @@ export default function RootLayout({
             </SettingsProvider>
           </AuthProvider>
         </FirebaseInitializer>
+        <LinkvertiseScript />
       </body>
     </html>
   );

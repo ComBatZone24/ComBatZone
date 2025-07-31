@@ -1,5 +1,4 @@
 
-
 import {
   Home,
   Wallet,
@@ -20,7 +19,7 @@ import {
   ShoppingBag,
   ShieldCheck,
   UserCog,
-  Link as LinkIconLucide,
+  Link2 as LinkIconLucide,
   Vote,
   Coins,
   Gift,
@@ -35,6 +34,9 @@ import {
   Send,
   ImagePlay,
   Cpu,
+  Lock,
+  Phone,
+  Target,
   Smartphone,
   Wand2,
   Globe,
@@ -43,7 +45,7 @@ import {
   Upload,
   ArrowUpCircle,
   SquareDashedKanban,
-  Lock,
+  Youtube, // Added
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -149,6 +151,13 @@ export const adminNavItems: NavItem[] = [
     permissionKey: 'referralAnalysis',
   },
   {
+    title: 'Redeem Code Analysis',
+    href: '/admin/redeem-code-analysis',
+    icon: Ticket,
+    description: 'Track redeem code creation and usage by delegates.',
+    permissionKey: 'coupons', 
+  },
+  {
     title: 'Tournament Analysis',
     href: '/admin/tournament-analysis',
     icon: BarChart3,
@@ -161,6 +170,13 @@ export const adminNavItems: NavItem[] = [
     icon: BarChart2,
     description: 'Calculate the profit for any individual completed tournament.',
     permissionKey: 'profitCalculator',
+  },
+  {
+    title: 'YouTube Subs',
+    href: '/admin/youtube-subs',
+    icon: Youtube,
+    description: 'Review and approve YouTube subscription submissions.',
+    permissionKey: 'youtubeSubs',
   },
   {
     title: 'Manage Tournaments',
@@ -203,6 +219,13 @@ export const adminNavItems: NavItem[] = [
     icon: UserCog,
     description: 'Assign specific screen access permissions to other users (delegates).',
     permissionKey: 'manageDelegates',
+  },
+  {
+    title: 'Delegate Contacts',
+    href: '/admin/delegate-contacts',
+    icon: Phone,
+    description: 'Quickly view and update WhatsApp numbers for your delegates.',
+    permissionKey: 'manageDelegates', // Use the same permission key
   },
   {
     title: 'Withdrawals',
@@ -314,28 +337,22 @@ export const settingsCategories = [
     description: 'Configure daily login rewards for users.',
   },
   {
+    title: 'Ad Link Task (Simple)',
+    href: '/admin/settings/ad-monetization',
+    icon: DollarSign,
+    description: 'Set a single Adsterra link for users to earn points.',
+  },
+  {
+    title: 'Offer Wall & Postback',
+    href: '/admin/settings/cpa-grip',
+    icon: Lock,
+    description: 'Configure multi-offer tasks and automated rewards.',
+  },
+  {
     title: 'YouTube Promotion',
     href: '/admin/settings/youtube-promotion',
     icon: Tv,
     description: 'Manage YouTube subscription tasks and live streams.',
-  },
-  {
-    title: 'Click & Earn',
-    href: '/admin/settings/click-and-earn',
-    icon: LinkIconLucide,
-    description: 'Manage links and points conversion for users.',
-  },
-   {
-    title: 'Ad Monetization',
-    href: '/admin/settings/ad-monetization',
-    icon: DollarSign,
-    description: 'Manage Adsterra ad links and popups.',
-  },
-  {
-    title: 'CPAGrip & Postback',
-    href: '/admin/settings/cpa-grip',
-    icon: Lock,
-    description: 'Configure CPAGrip file locker ads and postback.',
   },
   {
     title: 'Promo Pop-up',

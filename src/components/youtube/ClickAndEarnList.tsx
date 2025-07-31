@@ -1,13 +1,12 @@
 
-
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ClickAndEarnLink, User, GlobalSettings } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Clock, Loader2, Video, Check, Gift, AlertTriangle, Coins, TrendingUp, Info, Zap } from 'lucide-react';
+import { Clock, Loader2, Video, Check, Gift, AlertTriangle, Coins, Target } from 'lucide-react';
 import { database } from '@/lib/firebase/config';
-import { ref, update, runTransaction, serverTimestamp, set, onValue, off } from 'firebase/database';
+import { ref, update, onValue, off, set, runTransaction } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { format } from 'date-fns';
@@ -15,17 +14,14 @@ import RupeeIcon from '../core/rupee-icon';
 import { Alert, AlertTitle, AlertDescription } from '../ui/alert';
 import GlassCard from '../core/glass-card';
 import { Separator } from '../ui/separator';
-import { trackTaskClick } from '@/app/earn-tasks/actions'; // Import the new server action
-import { getClickAndEarnExplanation } from '@/ai/flows/mining-explanation-flow';
-import { HelpCircle } from 'lucide-react';
+import { trackTaskClick } from '@/app/earn-tasks/actions'; 
+import { Zap, Info } from 'lucide-react';
+import { Progress } from '../ui/progress';
 
 interface ClickAndEarnComponentProps {
   user: User;
   settings: Partial<GlobalSettings>;
 }
-
-const REQUIRED_STAY_SECONDS = 10;
-const POST_REWARD_COOLDOWN_SECONDS = 5;
 
 type ButtonState =
   | 'loading'
@@ -33,20 +29,16 @@ type ButtonState =
   | 'cooldown_all_used'
   | 'limit_reached'
   | 'waiting_for_stay'
-  | 'post_reward_cooldown';
-
-const FIXED_DAILY_TARGET = 98;
-
+  | 'post_reward_cooldown'
+  | 'batch_cooldown'; // New state for the 10-click cooldown
 
 export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnComponentProps) {
     const { toast } = useToast();
     const [links, setLinks] = useState<ClickAndEarnLink[]>([]);
     const [isLoadingLinks, setIsLoadingLinks] = useState(true);
-    const [userClaims, setUserClaims] = useState<Record<string, number>>({});
-    const [dailyData, setDailyData] = useState(user.dailyClickAndEarn);
+    const [userClaims, setUserClaims] = useState(user.userClickAndEarnClaims || {});
     
     const [buttonState, setButtonState] = useState<ButtonState>('loading');
-    const [nextLink, setNextLink] = useState<ClickAndEarnLink | null>(null);
     const [cooldownTimer, setCooldownTimer] = useState(0);
 
     const [isRewardDialogOpen, setIsRewardDialogOpen] = useState(false);
@@ -56,22 +48,21 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
     
     const [isConversionDay, setIsConversionDay] = useState(false);
 
-    const [isExplanationOpen, setIsExplanationOpen] = useState(false);
-    const [explanation, setExplanation] = useState<string>('');
-    const [isLoadingExplanation, setIsLoadingExplanation] = useState(false);
-
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const activeLinkRef = useRef<ClickAndEarnLink | null>(null);
     const adWindowOpenedAt = useRef<number>(0);
-
-    const todayStr = useMemo(() => format(new Date(), 'yyyy-MM-dd'), []);
+    const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const isHandlingVisibilityChange = useRef(false);
+    
+    const buttonStateRef = useRef(buttonState);
+    useEffect(() => { buttonStateRef.current = buttonState; }, [buttonState]);
+    
+    const userRef = useRef(user);
+    useEffect(() => { userRef.current = user; }, [user]);
     
     const pkrPerPoint = settings.pkrPerPoint || 0;
     const userPoints = user.watchAndEarnPoints || 0;
     
-    const dailyTargetReward = useMemo(() => {
-        const milestone = settings.clickMilestones?.find(m => m.clicks === FIXED_DAILY_TARGET);
-        return milestone?.points || 0;
-    }, [settings.clickMilestones]);
+    const dailyTargetReward = settings.dailyTargetReward || 0;
     
     useEffect(() => {
         const today = new Date();
@@ -81,161 +72,202 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
         }
     }, []);
 
+    // Fetch links and user progress from Firebase
     useEffect(() => {
-        const initializeDailyData = () => {
-            if (!user.id || !database) return;
-    
-            const currentDailyData = user.dailyClickAndEarn;
-    
-            if (!currentDailyData || currentDailyData.date !== todayStr) {
-                const newDailyData = {
-                    date: todayStr,
-                    clickCount: 0,
-                    dailyClickTarget: FIXED_DAILY_TARGET,
-                    isTargetCompleted: false,
-                };
-                setDailyData(newDailyData);
-                // Update the database without waiting for it, UI is already updated
-                set(ref(database, `users/${user.id}/dailyClickAndEarn`), newDailyData)
-                  .catch(err => console.error("Failed to set new daily data:", err));
-            } else {
-                setDailyData(currentDailyData);
-            }
-        };
-    
-        initializeDailyData();
-        setUserClaims(user.userClickAndEarnClaims || {});
-    }, [user.id, user.dailyClickAndEarn, user.userClickAndEarnClaims, todayStr, settings]);
+        if (!user.id || !database) {
+          setIsLoadingLinks(false);
+          return;
+        }
 
-
-    useEffect(() => {
         const linksRef = ref(database, 'clickAndEarnLinks');
-        const listener = onValue(linksRef, (snapshot) => {
+        const userClaimsRef = ref(database, `users/${user.id}/userClickAndEarnClaims`);
+
+        const linksListener = onValue(linksRef, (snapshot) => {
             const data = snapshot.val();
             setLinks(data ? Object.keys(data).map(id => ({ id, ...data[id] })) : []);
             setIsLoadingLinks(false);
         });
-        return () => off(linksRef, 'value', listener);
-    }, []);
 
-    const determineButtonState = useCallback(() => {
-        if (!user || isLoadingLinks || links.length === 0 || !dailyData) return setButtonState('loading');
-        
-        if (dailyData.isTargetCompleted) return setButtonState('limit_reached');
-
-        if (buttonState === 'waiting_for_stay' || buttonState === 'post_reward_cooldown') return;
-        
-        const availableLinks = links.filter(link => {
-            const lastClaimed = userClaims[link.id];
-            return !lastClaimed || Date.now() - lastClaimed > (24 * 60 * 60 * 1000);
+        const claimsListener = onValue(userClaimsRef, (snapshot) => {
+            setUserClaims(snapshot.val() || {});
         });
         
-        if (availableLinks.length > 0) {
-            if (!nextLink || !availableLinks.some(l => l.id === nextLink.id)) {
-                setNextLink(availableLinks[Math.floor(Math.random() * availableLinks.length)]);
-            }
-            setButtonState('ready');
-        } else {
-            setNextLink(null);
-            setButtonState('cooldown_all_used');
+        return () => {
+            off(linksRef, 'value', linksListener);
+            off(userClaimsRef, 'value', claimsListener);
+        };
+    }, [user.id]);
+
+    const requiredStaySeconds = settings.dailyAdTaskSettings?.stayDurationSeconds ?? 10;
+    const postRewardCooldownSeconds = settings.dailyAdTaskSettings?.postRewardCooldownSeconds ?? 5;
+    const linkRepeatHours = settings.dailyAdTaskSettings?.linkRepeatHours ?? 24;
+    const dailyClickTarget = settings.dailyTargetClicks || 98;
+
+    const startCooldown = useCallback((type: 'post_reward' | 'batch', duration?: number) => {
+        const cooldownSeconds = type === 'post_reward' ? postRewardCooldownSeconds : duration || 0;
+        if (cooldownSeconds <= 0) {
+            setButtonState('loading');
+            return;
         }
-    }, [user, isLoadingLinks, links, userClaims, nextLink, dailyData, buttonState]);
-    
-    useEffect(() => {
-        determineButtonState();
-    }, [userClaims, links, determineButtonState, dailyData]);
+        
+        setButtonState(type === 'post_reward' ? 'post_reward_cooldown' : 'batch_cooldown');
+        setCooldownTimer(cooldownSeconds);
 
-    const handleRewardAndCooldown = (reward: number) => {
-        setLastReward(reward);
-        setIsRewardDialogOpen(true);
-        setTimeout(() => setIsRewardDialogOpen(false), 2500);
+        if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
 
-        setButtonState('post_reward_cooldown');
-        setCooldownTimer(POST_REWARD_COOLDOWN_SECONDS);
-        timerRef.current = setInterval(() => {
+        countdownIntervalRef.current = setInterval(() => {
             setCooldownTimer(prev => {
                 if (prev <= 1) {
-                    clearInterval(timerRef.current!);
-                    determineButtonState();
+                    clearInterval(countdownIntervalRef.current!);
+                    setButtonState('loading');
                     return 0;
                 }
                 return prev - 1;
             });
         }, 1000);
-    };
+    }, [postRewardCooldownSeconds]);
 
-    const awardPoints = async (link: ClickAndEarnLink) => {
-        if (!user || !dailyData) return;
+
+     const awardPoints = useCallback(async (link: ClickAndEarnLink) => {
+        const currentUser = userRef.current;
+        if (!currentUser || !currentUser.id) return;
+
+        const now = Date.now();
+        const userDailyTaskRef = ref(database, `users/${currentUser.id}/dailyClickAndEarn`);
+        const userClaimsRef = ref(database, `users/${currentUser.id}/userClickAndEarnClaims/${link.id}`);
+        const userPointsRef = ref(database, `users/${currentUser.id}/watchAndEarnPoints`);
+
         try {
-            const now = Date.now();
-            
-            const newClickCount = dailyData.clickCount + 1;
-            const targetCompleted = newClickCount >= FIXED_DAILY_TARGET;
-            
-            let rewardAmount = 0;
-            if (targetCompleted && !dailyData.isTargetCompleted) {
-                rewardAmount = dailyTargetReward;
-            }
+            const transactionResult = await runTransaction(userDailyTaskRef, (currentTaskData) => {
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                if (!currentTaskData || currentTaskData.date !== todayStr) {
+                    return { date: todayStr, clickCount: 1, batchCooldownUntil: 0 };
+                }
+                const newClickCount = (currentTaskData.clickCount || 0) + 1;
+                
+                // Set new batch cooldown if a 10-click milestone is hit
+                if (newClickCount % 10 === 0 && newClickCount < dailyClickTarget) {
+                    const randomMinutes = Math.floor(Math.random() * (40 - 30 + 1)) + 30;
+                    currentTaskData.batchCooldownUntil = Date.now() + randomMinutes * 60 * 1000;
+                }
+                
+                currentTaskData.clickCount = newClickCount;
+                return currentTaskData;
+            });
 
-            const updates: Record<string, any> = {};
-            updates[`users/${user.id}/userClickAndEarnClaims/${link.id}`] = now;
-            updates[`users/${user.id}/dailyClickAndEarn/clickCount`] = newClickCount;
-            if (targetCompleted && !dailyData.isTargetCompleted) {
-                updates[`users/${user.id}/dailyClickAndEarn/isTargetCompleted`] = true;
-            }
-            if (rewardAmount > 0) {
-                updates[`users/${user.id}/watchAndEarnPoints`] = (user.watchAndEarnPoints || 0) + rewardAmount;
+            await set(userClaimsRef, now);
+            await trackTaskClick(currentUser.id, 'click_and_earn');
+
+            const updatedTaskData = transactionResult.snapshot.val();
+            const newClickCount = updatedTaskData?.clickCount || 0;
+
+            if (newClickCount === dailyClickTarget) {
+                const rewardAmount = dailyTargetReward || 0;
+                if (rewardAmount > 0) {
+                    await runTransaction(userPointsRef, (currentPoints) => (currentPoints || 0) + rewardAmount);
+                    setLastReward(rewardAmount);
+                    setIsRewardDialogOpen(true);
+                    setTimeout(() => setIsRewardDialogOpen(false), 2500);
+                }
             }
             
-            await update(ref(database), updates);
-            await trackTaskClick(user.id, 'click_and_earn'); // Call the server action to track click
-
-            if (rewardAmount > 0) {
-                handleRewardAndCooldown(rewardAmount);
+            // Check if we need to start a batch cooldown immediately
+            if (updatedTaskData.batchCooldownUntil && updatedTaskData.batchCooldownUntil > Date.now()) {
+                const remainingSeconds = Math.floor((updatedTaskData.batchCooldownUntil - Date.now()) / 1000);
+                startCooldown('batch', remainingSeconds);
             } else {
-                setButtonState('post_reward_cooldown');
-                 setCooldownTimer(POST_REWARD_COOLDOWN_SECONDS);
-                timerRef.current = setInterval(() => {
-                    setCooldownTimer(prev => {
-                        if (prev <= 1) {
-                            clearInterval(timerRef.current!);
-                            determineButtonState();
-                            return 0;
-                        }
-                        return prev - 1;
-                    });
-                }, 1000);
+                startCooldown('post_reward');
             }
 
         } catch (error: any) {
-            toast({ title: "Error", description: "Could not process your claim.", variant: "destructive"});
+            toast({ title: "Error", description: "Could not process your claim. Please try again.", variant: "destructive"});
+            setButtonState('ready');
         }
-    };
+    }, [dailyClickTarget, dailyTargetReward, toast, startCooldown]);
 
-    const handleButtonClick = () => {
-        if (!nextLink) {
+    const handleButtonClick = useCallback(() => {
+        if (!activeLinkRef.current) {
             toast({title: "No Task", description: "No available task to start.", variant: "destructive"});
             return;
         }
-        window.open(nextLink.url, '_blank', 'noopener,noreferrer');
+        
+        window.open(activeLinkRef.current.url, '_blank', 'noopener,noreferrer');
         adWindowOpenedAt.current = Date.now();
         setButtonState('waiting_for_stay');
 
+    }, [toast]);
+    
+    useEffect(() => {
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-                const timeElapsed = Date.now() - adWindowOpenedAt.current;
+          if (document.visibilityState !== 'visible' || buttonStateRef.current !== 'waiting_for_stay' || isHandlingVisibilityChange.current) {
+            return;
+          }
+          isHandlingVisibilityChange.current = true;
 
-                if (timeElapsed < REQUIRED_STAY_SECONDS * 1000) {
-                    setIsEarlyReturnDialogOpen(true);
-                    determineButtonState();
-                } else {
-                    awardPoints(nextLink);
-                }
+          const timeElapsed = Date.now() - adWindowOpenedAt.current;
+          const visitedLink = activeLinkRef.current;
+            
+          activeLinkRef.current = null;
+    
+          if (visitedLink) {
+            if (timeElapsed < requiredStaySeconds * 1000) {
+              setIsEarlyReturnDialogOpen(true);
+            } else {
+              awardPoints(visitedLink);
             }
+          }
+          setButtonState('loading');
+          setTimeout(() => { isHandlingVisibilityChange.current = false; }, 500);
         };
+      
         document.addEventListener('visibilitychange', handleVisibilityChange);
-    };
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [awardPoints, requiredStaySeconds]);
+    
+    // Main state determination logic
+    useEffect(() => {
+      if (buttonState === 'post_reward_cooldown' || buttonState === 'waiting_for_stay' || buttonState === 'batch_cooldown') {
+        return;
+      }
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    
+      if (isLoadingLinks) {
+        setButtonState('loading');
+        return;
+      }
+      
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const dailyClickCount = (user.dailyClickAndEarn?.date === todayStr) ? (user.dailyClickAndEarn.clickCount || 0) : 0;
+      const batchCooldownUntil = (user.dailyClickAndEarn?.date === todayStr) ? (user.dailyClickAndEarn.batchCooldownUntil || 0) : 0;
+      
+      if (dailyClickCount >= dailyClickTarget) {
+        setButtonState('limit_reached');
+        activeLinkRef.current = null;
+        return;
+      }
+      
+      if (batchCooldownUntil > Date.now()) {
+          const remainingSeconds = Math.floor((batchCooldownUntil - Date.now()) / 1000);
+          startCooldown('batch', remainingSeconds);
+          return;
+      }
+    
+      const linkRepeatMilliseconds = (linkRepeatHours || 24) * 60 * 60 * 1000;
+      const timeThreshold = Date.now() - linkRepeatMilliseconds;
+
+      const availableLinks = links.filter(link => {
+        const lastClaimed = userClaims[link.id];
+        return !lastClaimed || lastClaimed < timeThreshold;
+      });
+    
+      if (availableLinks.length > 0) {
+        activeLinkRef.current = availableLinks[Math.floor(Math.random() * availableLinks.length)];
+        setButtonState('ready');
+      } else {
+        activeLinkRef.current = null;
+        setButtonState('cooldown_all_used');
+      }
+    }, [user.dailyClickAndEarn, userClaims, links, isLoadingLinks, buttonState, linkRepeatHours, dailyClickTarget, startCooldown]);
 
     const canConvert = isConversionDay && userPoints >= 20;
 
@@ -248,8 +280,8 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
         }
 
         setIsConverting(true);
-        const amountToCredit = parseFloat((userPoints * pkrPerPoint).toFixed(2));
-        const pointsToDeduct = userPoints;
+        const pointsToConvert = userPoints; // Convert all points
+        const amountToCredit = parseFloat((pointsToConvert * pkrPerPoint).toFixed(2));
         
         try {
             if (!database) throw new Error("Firebase not initialized.");
@@ -257,18 +289,20 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
             const userRef = ref(database, `users/${user.id}`);
             await runTransaction(userRef, (currentData: User | null) => {
                 if (currentData) {
-                    currentData.wallet = (currentData.wallet || 0) + amountToCredit;
-                    currentData.watchAndEarnPoints = 0; // Reset points
+                    if ((currentData.watchAndEarnPoints || 0) >= pointsToConvert) {
+                        currentData.wallet = (currentData.wallet || 0) + amountToCredit;
+                        currentData.watchAndEarnPoints = (currentData.watchAndEarnPoints || 0) - pointsToConvert;
+                    }
                 }
                 return currentData;
             });
             
             const newTx = {
                 type: 'watch_earn_conversion', amount: amountToCredit, status: 'completed',
-                date: new Date().toISOString(), description: `Converted ${pointsToDeduct.toFixed(4)} points to PKR`,
+                date: new Date().toISOString(), description: `Converted ${pointsToConvert.toFixed(4)} points to PKR`,
             };
             await push(ref(database, `walletTransactions/${user.id}`), newTx);
-            toast({ title: "Conversion Successful!", description: `You converted ${pointsToDeduct.toFixed(4)} points to Rs ${amountToCredit.toFixed(2)}.`, className: "bg-green-500/20" });
+            toast({ title: "Conversion Successful!", description: `You converted ${pointsToConvert.toFixed(4)} points to Rs ${amountToCredit.toFixed(2)}.`, className: "bg-green-500/20" });
 
         } catch (error: any) {
             toast({ title: "Conversion Failed", description: error.message, variant: "destructive" });
@@ -276,57 +310,60 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
             setIsConverting(false);
         }
     };
-
-    const handleGetExplanation = async () => {
-        const milestone = settings.clickMilestones?.find(m => m.clicks === 98);
-        if (!settings.pkrPerPoint || !milestone) return;
-        
-        setIsExplanationOpen(true);
-        setIsLoadingExplanation(true);
-        try {
-            const result = await getClickAndEarnExplanation({
-                pkrPerPoint: settings.pkrPerPoint,
-                dailyTarget: 98,
-                dailyReward: milestone.points,
-            });
-            setExplanation(result.explanation);
-        } catch (error) {
-            console.error(error);
-            setExplanation("Sorry, I couldn't generate an explanation right now. Please try again later.");
-        } finally {
-            setIsLoadingExplanation(false);
-        }
-    };
     
     const renderButtonContent = () => {
-      switch(buttonState) {
-          case 'loading': return <><Loader2 className="mr-2 h-5 w-5 animate-spin"/> Loading Tasks...</>;
-          case 'cooldown_all_used': return <><Clock className="mr-2 h-5 w-5"/> All Tasks Done for Today</>;
-          case 'limit_reached': return <><Check className="mr-2 h-5 w-5"/> Daily Target Reached</>;
-          case 'waiting_for_stay': return <><Clock className="mr-2 h-5 w-5"/> Return after 10s</>;
-          case 'post_reward_cooldown': return <><Clock className="mr-2 h-5 w-5"/> Next task in... {cooldownTimer}s</>;
-          case 'ready': default: return <><Video className="mr-2 h-5 w-5"/> Watch Ad & Earn</>;
+        const formatTime = (totalSeconds: number) => {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        };
+
+        switch(buttonState) {
+            case 'loading': return <><Loader2 className="mr-2 h-5 w-5 animate-spin"/> Loading Tasks...</>;
+            case 'cooldown_all_used': return <><Clock className="mr-2 h-5 w-5"/> All Links Used, Check Back Later</>;
+            case 'limit_reached': return <><Check className="mr-2 h-5 w-5"/> Daily Target Reached</>;
+            case 'waiting_for_stay': return <><Clock className="mr-2 h-5 w-5"/> Return after {requiredStaySeconds}s</>;
+            case 'post_reward_cooldown': return <div className="flex items-center gap-2"><Clock className="h-5 w-5"/><span>Next task in... {cooldownTimer}s</span></div>;
+            case 'batch_cooldown': return <div className="flex items-center gap-2"><Clock className="h-5 w-5"/><span>Next batch in... {formatTime(cooldownTimer)}</span></div>;
+            case 'ready': default: return <><Video className="mr-2 h-5 w-5"/> Watch Ad & Earn</>;
       }
     };
 
     const isDisabled = buttonState !== 'ready';
-    const currentClickCount = dailyData?.clickCount ?? 0;
-    const currentClickTarget = dailyData?.dailyClickTarget ?? FIXED_DAILY_TARGET;
+    
+    const showDailyTarget = !!settings.dailyTargetClicks;
+    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const dailyClickCount = (user.dailyClickAndEarn?.date === todayStr) ? (user.dailyClickAndEarn.clickCount || 0) : 0;
     
     return (
         <GlassCard className="p-4 md:p-6 text-center">
-            <h3 className="text-xl md:text-2xl font-bold text-foreground mb-2 flex items-center justify-center gap-2">
-                <Gift className="h-7 w-7 text-yellow-400" /> Click &amp; Earn
+             <h3 className="text-xl md:text-2xl font-bold text-foreground mb-4 flex items-center justify-center gap-2">
+                <Gift className="h-7 w-7 text-yellow-400" /> Ad Link Task
             </h3>
-
-            <div className="grid grid-cols-2 gap-2 text-center mb-4">
-                <div className="p-2 rounded-md bg-muted/40">
-                    <p className="text-xs text-muted-foreground">Today's Clicks</p>
-                    <p className="font-bold text-lg text-foreground">{currentClickCount} / {currentClickTarget}</p>
+            
+            {showDailyTarget && dailyClickTarget > 0 && (
+                <div className="mb-4 px-2">
+                    <div className="flex justify-between items-center text-sm mb-1">
+                        <span className="text-muted-foreground flex items-center gap-1.5"><Target className="h-4 w-4"/> Daily Target</span>
+                        <span className="font-semibold text-foreground">
+                            {dailyClickCount} / {dailyClickTarget}
+                        </span>
+                    </div>
+                    <Progress value={(dailyClickCount / dailyClickTarget) * 100} className="h-2" />
                 </div>
-                <div className="p-2 rounded-md bg-muted/40">
+            )}
+
+            <div className="grid grid-cols-2 gap-4 my-4">
+                <div className="p-3 rounded-md bg-muted/40 text-center">
                     <p className="text-xs text-muted-foreground">Points Balance</p>
                     <p className="font-bold text-lg text-foreground">{(user.watchAndEarnPoints || 0).toFixed(4)}</p>
+                </div>
+                 <div className="p-3 rounded-md bg-muted/40 text-center">
+                    <p className="text-xs text-muted-foreground">Est. PKR Value</p>
+                    <p className="font-bold text-lg text-green-400 flex items-center justify-center gap-1">
+                        <RupeeIcon className="h-4"/>
+                        {(userPoints * pkrPerPoint).toFixed(2)}
+                    </p>
                 </div>
             </div>
 
@@ -338,14 +375,6 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
 
             <div className="space-y-3">
                 <h4 className="text-lg font-semibold text-foreground">Convert Points</h4>
-                 <div className="p-3 rounded-lg bg-background/50 border border-border/40">
-                    <p className="text-sm text-muted-foreground">PKR Value of Your Points</p>
-                    <p className="text-3xl font-bold text-green-400 flex items-center justify-center gap-1">
-                        <RupeeIcon className="h-6"/>
-                        {(userPoints * pkrPerPoint).toFixed(2)}
-                    </p>
-                 </div>
-                 
                  <Button onClick={handleConvertPoints} disabled={isConverting || !canConvert} className="w-full">
                     {isConverting && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
                     Convert All Points to Wallet
@@ -366,7 +395,7 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-yellow-400/20 mb-4 border-2 border-yellow-400 shadow-lg">
                             <Zap className="h-10 w-10 text-yellow-400" />
                         </div>
-                        <DialogTitle className="text-2xl text-yellow-300">Milestone Reached!</DialogTitle>
+                        <DialogTitle className="text-2xl text-yellow-300">Target Reached!</DialogTitle>
                         <DialogDescription className="text-foreground text-5xl font-bold my-4">
                             +{lastReward}
                         </DialogDescription>
@@ -382,7 +411,7 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
                         </div>
                         <DialogTitle className="text-2xl text-destructive">Returned Too Soon!</DialogTitle>
                         <DialogDescription className="text-foreground text-md my-4">
-                            Please wait for the full {REQUIRED_STAY_SECONDS} seconds on the ad page to get your reward.
+                            Please wait for the full {requiredStaySeconds} seconds on the ad page to get your reward.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

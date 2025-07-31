@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback } from 'react';
@@ -14,19 +15,20 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, Save, Loader2, Edit3Icon, UserCircle } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Edit3Icon, UserCircle, AlertCircle } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { useToast } from '@/hooks/use-toast';
 import { database } from '@/lib/firebase/config';
 import { ref, get, update } from 'firebase/database';
 import type { User } from '@/types';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const editUserSchema = z.object({
   username: z.string().min(3, "Username must be at least 3 characters.").max(30, "Username too long."),
   email: z.string().email("Invalid email format.").optional(), // Usually not editable by admin directly
   phone: z.string().optional().or(z.literal('')),
   wallet: z.coerce.number().min(0, "Wallet balance cannot be negative."),
-  role: z.enum(["user", "admin"]),
+  role: z.enum(["user", "admin", "delegate"]),
   isActive: z.boolean(),
   gameName: z.string().optional().or(z.literal('')),
   gameUid: z.string().optional().or(z.literal('')),
@@ -79,7 +81,7 @@ export default function AdminEditUserDetailsPage() {
           email: fetchedUser.email || "", // Display email, but it's typically not directly edited
           phone: fetchedUser.phone || "",
           wallet: fetchedUser.wallet || 0,
-          role: fetchedUser.role === 'admin' ? 'admin' : 'user',
+          role: fetchedUser.role === 'admin' ? 'admin' : fetchedUser.role === 'delegate' ? 'delegate' : 'user',
           isActive: fetchedUser.isActive !== undefined ? fetchedUser.isActive : false,
           gameName: fetchedUser.gameName || "",
           gameUid: fetchedUser.gameUid || "",
@@ -136,7 +138,7 @@ export default function AdminEditUserDetailsPage() {
           // User was active and is now banned
           toast({
               title: "User Banned",
-              description: `${usernameForToast}'s account has been deactivated. For appeals, please contact admin on WhatsApp: +923436203549`,
+              description: `${usernameForToast}'s account has been deactivated. For appeals, please contact admin on WhatsApp.`,
               variant: "destructive",
               duration: 10000, 
           });
@@ -219,6 +221,7 @@ export default function AdminEditUserDetailsPage() {
                     <SelectContent className="glass-card">
                       <SelectItem value="user">User</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="delegate">Delegate</SelectItem>
                     </SelectContent>
                   </Select>
                   {form.formState.errors.role && <p className="text-xs text-destructive mt-1">{form.formState.errors.role.message}</p>}
@@ -253,7 +256,7 @@ export default function AdminEditUserDetailsPage() {
           
           <div className="flex justify-end pt-4">
             <Button type="submit" className="neon-accent-bg" disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2" />}
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2" />}
               Save Changes
             </Button>
           </div>

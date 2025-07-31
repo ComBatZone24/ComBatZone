@@ -11,11 +11,11 @@ export async function GET(request: NextRequest) {
   const payoutStr = searchParams.get('payout');
   const offerId = searchParams.get('offer_id');
   const offerName = searchParams.get('offer_name');
-  const offerUrlId = searchParams.get('offer_url_id'); // New parameter for identifying the specific URL
+  const offerUrlId = searchParams.get('offer_url_id'); // Base64 encoded URL
 
   // --- Initial validation ---
-  if (!userId || !secretKey || !payoutStr || !offerUrlId) {
-    console.warn('CPAGrip Postback: Missing required parameters (sub1, sub2, payout, offer_url_id).');
+  if (!userId || !secretKey || !offerUrlId) {
+    console.warn('CPAGrip Postback: Missing required parameters (sub1, sub2, offer_url_id).');
     return NextResponse.json({ status: 'error', message: 'Missing parameters' }, { status: 400 });
   }
 
@@ -30,51 +30,69 @@ export async function GET(request: NextRequest) {
       throw new Error("CPAGrip settings not found in database.");
     }
     const settings: GlobalSettings['cpaGripSettings'] = settingsSnapshot.val();
+    const requiredCompletions = settings?.requiredCompletions || 1;
 
     if (secretKey !== settings?.postbackKey) {
       console.warn(`CPAGrip Postback: Invalid secret key. Received: ${secretKey}`);
       return NextResponse.json({ status: 'error', message: 'Invalid secret key' }, { status: 403 });
     }
     
-    const pointsToAward = settings.points || 0;
-    if (pointsToAward <= 0) {
-      console.log(`CPAGrip Postback: Reward points are 0 or not set for user ${userId}. Skipping award.`);
-      return NextResponse.json({ status: 'ok', message: 'No reward configured.' });
-    }
-
     // --- Check if user has already completed this specific offer ---
     const completedOfferRef = ref(database, `users/${userId}/completedCpaOffers/${offerUrlId}`);
     const completedOfferSnapshot = await get(completedOfferRef);
     if (completedOfferSnapshot.exists()) {
         console.log(`CPAGrip Postback: User ${userId} has already completed offer ${offerUrlId}. Ignoring.`);
-        return new Response('1', { status: 200, headers: { 'Content-Type': 'text/plain' } }); // Still return success to CPAGrip
+        return new Response('1', { status: 200, headers: { 'Content-Type': 'text/plain' } });
     }
+    
+    await set(completedOfferRef, true); // Mark this specific offer as completed
 
-    // --- Update user's wallet ---
-    const userWalletRef = ref(database, `users/${userId}/wallet`);
-    const txResult = await runTransaction(userWalletRef, (currentBalance: number | null) => {
-      return (currentBalance || 0) + pointsToAward;
+    // --- Update user's progress ---
+    const userProgressRef = ref(database, `users/${userId}/cpaMilestoneProgress`);
+    const progressSnapshot = await runTransaction(userProgressRef, (currentProgress: { count: number } | null) => {
+        if (currentProgress) {
+            currentProgress.count = (currentProgress.count || 0) + 1;
+        } else {
+            currentProgress = { count: 1 };
+        }
+        return currentProgress;
     });
 
-    if (!txResult.committed) {
-      throw new Error(`Failed to update wallet for user ${userId}. Transaction did not commit.`);
+    const newCount = progressSnapshot.snapshot.val()?.count || 1;
+    
+    // --- Check if milestone is reached ---
+    if (newCount >= requiredCompletions) {
+        console.log(`User ${userId} reached milestone of ${requiredCompletions}. Awarding points.`);
+        
+        const pointsToAward = settings.points || 0;
+        if (pointsToAward <= 0) {
+            console.log(`CPAGrip Postback: Reward points are 0 or not set for user ${userId}. Skipping award.`);
+        } else {
+            // Update wallet
+            const userWalletRef = ref(database, `users/${userId}/wallet`);
+            await runTransaction(userWalletRef, (currentBalance: number | null) => {
+                return (currentBalance || 0) + pointsToAward;
+            });
+            // Log transaction
+            const walletTxRef = ref(database, `walletTransactions/${userId}`);
+            const newTransaction: Omit<WalletTransaction, 'id'> = {
+                type: 'cpa_grip_reward',
+                amount: pointsToAward,
+                status: 'completed',
+                date: new Date().toISOString(),
+                description: `Reward for completing ${requiredCompletions} offers. Last offer: ${offerName || 'Unknown'}`,
+            };
+            await push(walletTxRef, newTransaction);
+        }
+        
+        // Reset progress
+        await set(userProgressRef, { count: 0 });
+
+    } else {
+        console.log(`User ${userId} progress updated to ${newCount}/${requiredCompletions}. No reward yet.`);
     }
 
-    // --- Mark this specific offer as completed for the user ---
-    await set(completedOfferRef, true);
-
-    // --- Log the transaction ---
-    const walletTxRef = ref(database, `walletTransactions/${userId}`);
-    const newTransaction: Omit<WalletTransaction, 'id'> = {
-      type: 'cpa_grip_reward',
-      amount: pointsToAward,
-      status: 'completed',
-      date: new Date().toISOString(),
-      description: `Reward for completing CPAGrip offer: ${offerName || 'Unknown Offer'} (ID: ${offerId || 'N/A'})`,
-    };
-    await push(walletTxRef, newTransaction);
-    
-    console.log(`CPAGrip Postback: Successfully awarded ${pointsToAward} points to user ${userId} for completing offer ${offerUrlId}.`);
+    console.log(`CPAGrip Postback: Successfully processed offer ${offerUrlId} for user ${userId}.`);
     
     // CPAGrip expects '1' on success
     return new Response('1', { status: 200, headers: { 'Content-Type': 'text/plain' } });

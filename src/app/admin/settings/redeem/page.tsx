@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Save, Ticket, Loader2, ArrowLeft, Trash2, Eye } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
-import type { RedeemCodeEntry } from '@/types';
+import type { RedeemCodeEntry, User as AppUserType } from '@/types';
 import Link from 'next/link';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
@@ -26,9 +26,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
-import { database } from '@/lib/firebase/config';
+import { database, auth } from '@/lib/firebase/config';
 import { ref, set, onValue, off, remove, get } from 'firebase/database';
 import PageTitle from '@/components/core/page-title';
+import { useAuth } from '@/context/AuthContext';
 
 interface InputFieldProps {
   id: string;
@@ -65,6 +66,7 @@ const InputField: React.FC<InputFieldProps> = ({ id, label, value, onChange, typ
 
 
 export default function AdminRedeemCodePage() {
+  const { user: appUser } = useAuth();
   const { toast } = useToast();
   const [redeemCode, setRedeemCode] = useState('');
   const [redeemAmount, setRedeemAmount] = useState('');
@@ -111,6 +113,11 @@ export default function AdminRedeemCodePage() {
 
   const handleGenerateRedeemCode = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!appUser) {
+        toast({ title: "Not Authenticated", description: "You must be logged in to create a code.", variant: "destructive" });
+        return;
+    }
+
     const numericAmount = parseFloat(redeemAmount);
     const numericMaxUses = parseInt(String(maxUses), 10);
 
@@ -141,6 +148,8 @@ export default function AdminRedeemCodePage() {
         isUsed: false,
         usedBy: null,
         createdAt: new Date().toISOString(),
+        createdBy: appUser.id, 
+        createdByName: appUser.username,
         maxUses: numericMaxUses,
         timesUsed: 0,
         claimedBy: {},

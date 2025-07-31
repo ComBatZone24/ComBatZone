@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, XCircle, Hourglass, RefreshCcw, AlertCircle, Trash2 } from 'lucide-react';
-import type { WithdrawRequest, WalletTransaction } from '@/types';
+import type { WithdrawRequest, WalletTransaction, User as AppUserType } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +14,7 @@ import RupeeIcon from '@/components/core/rupee-icon';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, off, update, runTransaction, push, remove } from 'firebase/database';
+import { ref, onValue, off, update, runTransaction, push, remove, get } from 'firebase/database';
 import PageTitle from '@/components/core/page-title';
 
 
@@ -94,6 +94,25 @@ export default function AdminWithdrawalsPage() {
         updates[`withdrawRequests/${requestId}/status`] = 'completed'; // Mark request as completed
         updates[`walletTransactions/${userId}/${walletTransactionId}/status`] = 'completed'; // Mark original hold transaction as completed
         updates[`walletTransactions/${userId}/${walletTransactionId}/description`] = `Withdrawal to ${requestToUpdate.method || 'account'} completed.`; // Update description
+
+        const userRef = ref(database, `users/${userId}`);
+        const userSnapshot = await get(userRef);
+        if (userSnapshot.exists()) {
+            const userData = userSnapshot.val() as AppUserType;
+            const delegateId = userData.referredByDelegate;
+            if (delegateId) {
+                const delegateFee = requestToUpdate.amount * 0.05; // 5% fee for delegate
+                const delegateWalletRef = ref(database, `users/${delegateId}/wallet`);
+                await runTransaction(delegateWalletRef, (currentBalance) => (currentBalance || 0) + delegateFee);
+                
+                const commissionTx: Omit<WalletTransaction, 'id'> = {
+                    type: 'referral_commission_earned', amount: delegateFee, status: 'completed',
+                    date: new Date().toISOString(),
+                    description: `5% fee from ${userData.username}'s withdrawal of Rs ${requestToUpdate.amount.toFixed(2)}`,
+                };
+                await push(ref(database, `walletTransactions/${delegateId}`), commissionTx);
+            }
+        }
 
         toast({ title: "Request Approved", description: `Withdrawal for Rs ${amount.toFixed(2)} finalized.`, variant: "default", className: "bg-green-500/20 text-green-300 border-green-500/30" });
 
@@ -225,7 +244,7 @@ export default function AdminWithdrawalsPage() {
         <AlertTitle className="!text-primary">Important Process Note</AlertTitle>
         <AlertDescription className="!text-primary/80">
           When a user requests a withdrawal, the amount is put on hold (deducted) from their wallet.
-          Approving a request finalizes this (funds are already deducted). Rejecting a request will refund the amount to the user's wallet and log a refund transaction.
+          Approving a request finalizes this and pays any delegate commission. Rejecting a request will refund the amount to the user's wallet.
         </AlertDescription>
       </Alert>
 

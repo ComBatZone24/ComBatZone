@@ -28,14 +28,14 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription as AlertDialogDescriptionDelete, AlertDialogFooter as AlertDialogFooterDelete, AlertDialogHeader as AlertDialogHeaderDelete, AlertDialogTitle as AlertDialogTitleDelete
+  AlertDialogContent as AlertDialogContentDelete, AlertDialogFooter as AlertDialogFooterDelete, AlertDialogHeader as AlertDialogHeaderDelete, AlertDialogTitle as AlertDialogTitleDelete
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 const adminSelectableOrderStatuses: Pick<ShopOrder, 'status'>['status'][] = ['pending_fulfillment', 'shipped', 'cancelled'];
 const allPossibleOrderStatuses: ShopOrder['status'][] = ['pending_fulfillment', 'shipped', 'delivered', 'cancelled', 'payment_failed'];
@@ -43,6 +43,18 @@ const allPossibleOrderStatuses: ShopOrder['status'][] = ['pending_fulfillment', 
 const formatOrderStatus = (status: ShopOrder['status']): string => {
   return status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 };
+
+const getStatusBadgeClasses = (status: ShopOrder['status']) => {
+    switch (status) {
+      case 'pending_fulfillment': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
+      case 'shipped': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+      case 'delivered': return 'bg-green-500/20 text-green-300 border-green-500/30';
+      case 'cancelled':
+      case 'payment_failed':
+        return 'bg-red-500/20 text-red-300 border-red-500/30';
+      default: return '';
+    }
+  };
 
 export default function AdminShopOrdersPage() {
   const [orders, setOrders] = useState<ShopOrder[]>([]);
@@ -104,18 +116,6 @@ export default function AdminShopOrdersPage() {
       case 'cancelled': return 'destructive';
       case 'payment_failed': return 'destructive';
       default: return 'outline';
-    }
-  };
-  
-  const getStatusBadgeClasses = (status: ShopOrder['status']) => {
-    switch (status) {
-      case 'pending_fulfillment': return 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30';
-      case 'shipped': return 'bg-blue-500/20 text-blue-300 border-blue-500/30';
-      case 'delivered': return 'bg-green-500/20 text-green-300 border-green-500/30';
-      case 'cancelled':
-      case 'payment_failed':
-        return 'bg-red-500/20 text-red-300 border-red-500/30';
-      default: return '';
     }
   };
 
@@ -283,74 +283,120 @@ export default function AdminShopOrdersPage() {
             No shop orders found yet.
           </div>
         ) : (
-          <div className="relative flex-1">
-            <ScrollArea className="absolute inset-0">
-              <Table className="min-w-[900px]">
-                <TableHeader>
-                  <TableRow className="border-b-border/50 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-center w-[130px]">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {orders.map(order => (
-                    <TableRow key={order.id} className="border-b-border/20 hover:bg-muted/20">
-                      <TableCell className="font-mono text-xs" title={order.id}>{order.id.substring(0, 8)}...</TableCell>
-                      <TableCell>
-                        <Link href={`/admin/users/${order.userId}`} className="hover:text-accent hover:underline">
-                          {order.username}
-                        </Link>
-                        <p className="text-xs text-muted-foreground" title={order.userId}>UID: {order.userId.substring(0,8)}...</p>
-                      </TableCell>
-                      <TableCell>
-                        {order.productName}
-                        <p className="text-xs text-muted-foreground" title={order.productId}>PID: {order.productId.substring(0,8)}...</p>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <RupeeIcon className="inline h-3.5 -mt-0.5"/> {order.productPrice.toFixed(2)}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {order.orderTimestamp && typeof order.orderTimestamp === 'string' && isValid(parseISO(order.orderTimestamp)) 
-                          ? format(parseISO(order.orderTimestamp), "dd MMM, hh:mm a") 
-                          : (typeof order.orderTimestamp === 'number' 
-                              ? format(new Date(order.orderTimestamp), "dd MMM, hh:mm a")
-                              : 'N/A')}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeClasses(order.status)}>
-                          <span>{formatOrderStatus(order.status)}</span>
-                        </Badge>
-                      </TableCell>                      
-                      <TableCell className="text-center">
-                        <Button variant="outline" size="sm" onClick={() => handleManageClick(order)}>
-                          <Edit3 className="h-3.5 w-3.5" /> <span className="sr-only sm:not-sr-only sm:ml-1.5">Manage</span>
-                        </Button> 
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="ml-2"
-                          onClick={() => handleDeleteClick(order.id)}
-                          disabled={isProcessingDelete && deletingOrderId === order.id}
-                        >
-                           {isProcessingDelete && deletingOrderId === order.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="h-3.5 w-3.5" /> 
-                            )} 
-                            <span className="sr-only sm:not-sr-only sm:ml-1.5">Delete</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+          <div className="flex-1">
+             {/* Desktop Table View */}
+             <div className="hidden md:block relative h-full">
+                <ScrollArea className="absolute inset-0">
+                  <Table className="min-w-[900px]">
+                    <TableHeader>
+                      <TableRow className="border-b-border/50 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
+                        <TableHead>Order ID</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Product</TableHead>
+                        <TableHead className="text-right">Price</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center w-[130px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {orders.map(order => (
+                        <TableRow key={order.id} className="border-b-border/20 hover:bg-muted/20">
+                          <TableCell className="font-mono text-xs" title={order.id}>{order.id.substring(0, 8)}...</TableCell>
+                          <TableCell>
+                            <Link href={`/admin/users/${order.userId}`} className="hover:text-accent hover:underline">
+                              {order.username}
+                            </Link>
+                            <p className="text-xs text-muted-foreground" title={order.userId}>UID: {order.userId.substring(0,8)}...</p>
+                          </TableCell>
+                          <TableCell>
+                            {order.productName}
+                            <p className="text-xs text-muted-foreground" title={order.productId}>PID: {order.productId.substring(0,8)}...</p>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <RupeeIcon className="inline h-3.5 -mt-0.5"/> {order.productPrice.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {order.orderTimestamp && typeof order.orderTimestamp === 'string' && isValid(parseISO(order.orderTimestamp)) 
+                              ? format(parseISO(order.orderTimestamp), "dd MMM, hh:mm a") 
+                              : (typeof order.orderTimestamp === 'number' 
+                                  ? format(new Date(order.orderTimestamp), "dd MMM, hh:mm a")
+                                  : 'N/A')}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeClasses(order.status)}>
+                              <span>{formatOrderStatus(order.status)}</span>
+                            </Badge>
+                          </TableCell>                      
+                          <TableCell className="text-center">
+                            <Button variant="outline" size="sm" onClick={() => handleManageClick(order)}>
+                              <Edit3 className="h-3.5 w-3.5" /> <span className="sr-only sm:not-sr-only sm:ml-1.5">Manage</span>
+                            </Button> 
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="ml-2"
+                              onClick={() => handleDeleteClick(order.id)}
+                              disabled={isProcessingDelete && deletingOrderId === order.id}
+                            >
+                               {isProcessingDelete && deletingOrderId === order.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" /> 
+                                )} 
+                                <span className="sr-only sm:not-sr-only sm:ml-1.5">Delete</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <ScrollBar orientation="horizontal" />
+                </ScrollArea>
+             </div>
+             {/* Mobile Card View */}
+             <div className="md:hidden">
+                <ScrollArea className="h-full">
+                    <div className="p-4 space-y-4">
+                        {orders.map(order => (
+                            <GlassCard key={order.id} className="p-4 bg-card/80">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                        <p className="font-semibold text-foreground">{order.productName}</p>
+                                        <p className="text-xs text-muted-foreground font-mono" title={order.id}>#{order.id.substring(0, 8)}...</p>
+                                    </div>
+                                    <Badge variant={getStatusBadgeVariant(order.status)} className={getStatusBadgeClasses(order.status)}>
+                                      <span>{formatOrderStatus(order.status)}</span>
+                                    </Badge>
+                                </div>
+                                <Separator className="mb-2 bg-border/50" />
+                                <div className="space-y-1 text-sm">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">User:</span>
+                                        <span className="font-medium text-foreground">{order.username}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Price:</span>
+                                        <span className="font-medium text-foreground"><RupeeIcon className="inline h-3.5"/> {order.productPrice.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">Date:</span>
+                                        <span className="font-medium text-foreground text-xs">
+                                          {order.orderTimestamp && typeof order.orderTimestamp === 'string' && isValid(parseISO(order.orderTimestamp)) 
+                                            ? format(parseISO(order.orderTimestamp), "dd MMM, hh:mm a") 
+                                            : 'N/A'}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-border/50 flex gap-2">
+                                    <Button variant="outline" size="sm" className="flex-1" onClick={() => handleManageClick(order)}>Manage</Button>
+                                    <Button variant="destructive" size="sm" className="flex-1" onClick={() => handleDeleteClick(order.id)}>Delete</Button>
+                                </div>
+                            </GlassCard>
+                        ))}
+                    </div>
+                </ScrollArea>
+             </div>
           </div>
         )}
       </GlassCard>
@@ -434,7 +480,7 @@ export default function AdminShopOrdersPage() {
       </Dialog>
     
      <AlertDialog open={deletingOrderId !== null} onOpenChange={(open) => !open && setDeletingOrderId(null)}>
-      <AlertDialogContent className="glass-card">
+      <AlertDialogContentDelete className="glass-card">
         {orders.find(o => o.id === deletingOrderId) && (
           <>
           <AlertDialogHeaderDelete>
@@ -459,7 +505,7 @@ export default function AdminShopOrdersPage() {
           </AlertDialogFooterDelete>
           </>
         )}
-      </AlertDialogContent>
+      </AlertDialogContentDelete>
     </AlertDialog>
     </div>
   );

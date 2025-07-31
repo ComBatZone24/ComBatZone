@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { User, WalletTransaction, RedeemCodeEntry, GlobalSettings } from '@/types';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
@@ -12,15 +11,12 @@ import RupeeIcon from '@/components/core/rupee-icon';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { database, auth } from '@/lib/firebase/config'; 
-import { ref, update, push, runTransaction } from 'firebase/database';
+import { ref, update, push, runTransaction, get, query, orderByChild, equalTo } from 'firebase/database';
 import type { User as FirebaseUser } from 'firebase/auth'; 
 import {
   Dialog,
   DialogContent,
   DialogTrigger,
-  DialogTitle,
-  DialogDescription,
-  DialogHeader,
 } from "@/components/ui/dialog";
 import WithdrawDialog from './withdraw-dialog';
 import MobileLoadDialog from './mobile-load-dialog';
@@ -30,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Coins } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { format, formatDistanceToNow, parseISO } from 'date-fns';
+import { format, parseISO, formatDistanceToNow } from 'date-fns';
 
 
 interface WalletDisplayProps {
@@ -50,6 +46,71 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
   const [isMobileLoadDialogOpen, setIsMobileLoadDialogOpen] = useState(false);
   const [isRechargeLoading, setIsRechargeLoading] = useState(false);
   
+  const applyReferralBonusIfNeeded = useCallback(async () => {
+    if (!firebaseUser || !database || !user) return;
+
+    if (user.appliedReferralCode && !user.referralBonusReceived) {
+        const bonusAmount = settings.referralBonusAmount || 0;
+        if (!settings.shareAndEarnEnabled || bonusAmount <= 0) return;
+
+        console.log(`Applying referral bonus for user ${user.id} with code ${user.appliedReferralCode}`);
+
+        try {
+            const usersRef = ref(database, 'users');
+            const referrerQuery = query(usersRef, orderByChild('referralCode'), equalTo(user.appliedReferralCode));
+            const referrerSnapshot = await get(referrerQuery);
+
+            if (referrerSnapshot.exists()) {
+                let referrerId = '';
+                let referrerData: User | null = null;
+                referrerSnapshot.forEach(child => {
+                    referrerId = child.key!;
+                    referrerData = child.val();
+                });
+
+                if (referrerId && referrerId !== user.id) {
+                    await runTransaction(ref(database, `users/${user.id}`), (currentUserData) => {
+                        if (currentUserData && !currentUserData.referralBonusReceived) {
+                            currentUserData.wallet = (currentUserData.wallet || 0) + bonusAmount;
+                            currentUserData.referralBonusReceived = bonusAmount;
+                        }
+                        return currentUserData;
+                    });
+                    
+                    await push(ref(database, `walletTransactions/${user.id}`), {
+                        type: 'referral_bonus_received', amount: bonusAmount, status: 'completed',
+                        date: new Date().toISOString(), description: `Referral bonus from ${referrerData?.username || 'referrer'}`,
+                    });
+                    
+                    await runTransaction(ref(database, `users/${referrerId}`), (currentReferrerData) => {
+                         if (currentReferrerData) {
+                            currentReferrerData.wallet = (currentReferrerData.wallet || 0) + bonusAmount;
+                            currentReferrerData.totalReferralCommissionsEarned = (currentReferrerData.totalReferralCommissionsEarned || 0) + bonusAmount;
+                        }
+                        return currentReferrerData;
+                    });
+                     await push(ref(database, `walletTransactions/${referrerId}`), {
+                        type: 'referral_commission_earned', amount: bonusAmount, status: 'completed',
+                        date: new Date().toISOString(), description: `Commission for referring ${user.username}`,
+                    });
+
+                    toast({ title: "Referral Bonus Applied!", description: `You and your referrer both received Rs ${bonusAmount}.`, className: "bg-green-500/20" });
+                    onRefresh();
+                }
+            } else {
+                await update(ref(database, `users/${user.id}`), { appliedReferralCode: `${user.appliedReferralCode}_INVALID` });
+            }
+        } catch (error) {
+            console.error("Error applying referral bonus:", error);
+        }
+    }
+  }, [firebaseUser, user, settings, toast, onRefresh]);
+
+
+  useEffect(() => {
+    applyReferralBonusIfNeeded();
+  }, [applyReferralBonusIfNeeded]);
+
 
   const getTransactionTypeIcon = (type: WalletTransaction['type']) => {
     const iconClass = "w-6 h-6 shrink-0";
@@ -73,50 +134,64 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
 
   const handleRedeemCode = async () => {
     if (!redeemCodeInput.trim() || !firebaseUser || !database) {
-      toast({ title: "Input Error", description: "Please enter a redeem code and ensure you're logged in.", variant: "destructive" });
+      toast({ title: "Input Error", description: "Please enter a redeem code.", variant: "destructive" });
       return;
     }
 
     setIsRedeeming(true);
     const codeString = redeemCodeInput.trim().toUpperCase();
+    const codeRef = ref(database, `redeemCodes/${codeString}`);
 
     try {
-      const codeRef = ref(database, `redeemCodes/${codeString}`);
-      
-      const transactionResult = await runTransaction(codeRef, (codeData: RedeemCodeEntry | null) => {
-        if (codeData === null) return; // Code does not exist
-        if (codeData.timesUsed >= codeData.maxUses) return; // Code is fully used
-        if (codeData.claimedBy && codeData.claimedBy[firebaseUser.uid]) return; // User already claimed
+      const transactionResult = await runTransaction(codeRef, (currentData: RedeemCodeEntry | null) => {
+        if (currentData === null) {
+          throw new Error("This code is invalid or does not exist.");
+        }
+        if (currentData.timesUsed >= currentData.maxUses) {
+          throw new Error("This code has reached its maximum usage limit.");
+        }
+        if (currentData.claimedBy && currentData.claimedBy[firebaseUser.uid]) {
+          throw new Error("You have already used this code.");
+        }
         
-        codeData.timesUsed = (codeData.timesUsed || 0) + 1;
-        if (!codeData.claimedBy) codeData.claimedBy = {};
-        codeData.claimedBy[firebaseUser.uid] = new Date().toISOString();
-        if(codeData.timesUsed >= codeData.maxUses) codeData.isUsed = true;
-        
-        return codeData;
+        currentData.timesUsed = (currentData.timesUsed || 0) + 1;
+        if (!currentData.claimedBy) {
+          currentData.claimedBy = {};
+        }
+        currentData.claimedBy[firebaseUser.uid] = true;
+
+        if(currentData.timesUsed >= currentData.maxUses) {
+            currentData.isUsed = true;
+        }
+        return currentData;
       });
 
       if (!transactionResult.committed) {
-         throw new Error("This code is invalid, already used, or has reached its limit.");
+         throw new Error("Could not redeem code. It might have been claimed by another user just now. Please try again.");
       }
 
-      const codeData = transactionResult.snapshot.val() as RedeemCodeEntry;
+      const redeemedCodeData = transactionResult.snapshot.val() as RedeemCodeEntry;
       const userWalletRef = ref(database, `users/${firebaseUser.uid}/wallet`);
-      await runTransaction(userWalletRef, (currentBalance) => (currentBalance || 0) + codeData.amount);
+      
+      await runTransaction(userWalletRef, (currentBalance) => (currentBalance || 0) + redeemedCodeData.amount);
 
       const newTransaction: Omit<WalletTransaction, 'id'> = {
-        type: 'redeem_code', amount: codeData.amount, status: 'completed',
-        date: new Date().toISOString(), description: `Redeemed code: ${codeString}`,
+        type: 'redeem_code',
+        amount: redeemedCodeData.amount,
+        status: 'completed',
+        date: new Date().toISOString(),
+        description: `Redeemed code: ${codeString}`,
       };
       await push(ref(database, `walletTransactions/${firebaseUser.uid}`), newTransaction);
 
-      toast({ title: "Code Redeemed!", description: `Rs ${codeData.amount} added to your wallet.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
+      toast({ title: "Code Redeemed!", description: `Rs ${redeemedCodeData.amount} added to your wallet.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
       setRedeemCodeInput('');
       onRefresh();
-    } catch (error) {
-      toast({ title: "Redemption Error", description: `Could not redeem code: ${error instanceof Error ? error.message : "Unknown error"}`, variant: "destructive" });
+
+    } catch (error: any) {
+        toast({ title: "Redemption Error", description: error.message, variant: "destructive" });
     } finally {
-      setIsRedeeming(false);
+        setIsRedeeming(false);
     }
   };
   
@@ -124,24 +199,16 @@ const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, fireb
     setIsRechargeLoading(true);
     
     try {
-        if (!user) throw new Error("User not available.");
-
-        const response = await fetch('/api/get-contact', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ referralCode: user.appliedReferralCode }),
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.message || 'Failed to get contact information.');
-        }
-
-        const { contactNumber } = await response.json();
-        const cleanedNumber = contactNumber.replace(/\D/g, '');
-
-        const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
-        const rechargeMessage = `Assalamualaikum, Admin!
+      const adminNumbers = settings?.contactWhatsapp || [];
+      if (adminNumbers.length === 0) {
+        throw new Error("Contact information is not configured by the admin.");
+      }
+      const contactNumber = adminNumbers[Math.floor(Math.random() * adminNumbers.length)];
+  
+      const cleanedNumber = contactNumber.replace(/\D/g, '');
+  
+      const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
+      const rechargeMessage = `Assalamualaikum, Admin!
 
 I need to top-up my Arena Ace wallet. Here are my details:
 -----------------------------------
@@ -152,14 +219,14 @@ I need to top-up my Arena Ace wallet. Here are my details:
 -----------------------------------
 
 Please guide me on the payment process. Thank you!`.trim();
-
-        const url = `https://wa.me/${cleanedNumber}?text=${encodeURIComponent(rechargeMessage)}`;
-        window.open(url, '_blank', 'noopener,noreferrer');
-
+  
+      const url = `https://wa.me/${cleanedNumber}?text=${encodeURIComponent(rechargeMessage)}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+  
     } catch (error: any) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
-        setIsRechargeLoading(false);
+      setIsRechargeLoading(false);
     }
   };
   
@@ -249,7 +316,7 @@ Please guide me on the payment process. Thank you!`.trim();
             <Loader2 className="mr-2 h-4 w-4 animate-spin hidden" id="refresh-spinner" /> Refresh
           </Button>
         </div>
-        {sortedTransactions.length > 0 ? (
+        {transactions.length > 0 ? (
           <ScrollArea className="h-[600px] w-full">
             <ul className="divide-y divide-border/30">
               {sortedTransactions.map((tx) => (
@@ -257,7 +324,7 @@ Please guide me on the payment process. Thank you!`.trim();
                   <div className="flex items-center gap-4">
                     {getTransactionTypeIcon(tx.type)}
                     <div>
-                      <p className="font-medium text-sm text-foreground">{tx.description || tx.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
+                      <p className="font-medium text-sm text-foreground">{tx.description || tx.type.replace(/_/g, ' ').replace(/w/g, l => l.toUpperCase())}</p>
                       <p className="text-xs text-muted-foreground">{new Date(tx.date).toLocaleString()}</p>
                     </div>
                   </div>
@@ -284,5 +351,4 @@ Please guide me on the payment process. Thank you!`.trim();
     </div>
   );
 };
-
 export default WalletDisplay;

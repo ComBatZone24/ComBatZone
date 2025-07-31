@@ -1,0 +1,24 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+  
+    // Allow admin full access to everything
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null && get(/databases/{database}/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Allow users to upload their own profile pictures
+    // They can read their own, but not others. They can only create/update their own.
+    match /user-profiles/{userId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow users to upload YouTube promotion screenshots to their own folder
+    match /user-submissions/{userId}/youtube-promo/{fileName} {
+      allow read: if request.auth != null && (request.auth.uid == userId || get(/databases/{database}/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
