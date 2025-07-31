@@ -90,8 +90,10 @@ export default function YoutubePromotionTask({ settings }: YoutubePromotionTaskP
             const uploadResult = await uploadString(screenshotFileRef, base64Data, 'data_url');
             const downloadUrl = await getDownloadURL(uploadResult.ref);
             
+            // Update the data object with the final URL
             submissionData.screenshotUrl = downloadUrl;
 
+            // Save the complete data to the database
             await set(submissionRef, submissionData);
 
             setUploadStatus('submitted');

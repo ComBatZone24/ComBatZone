@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import type { UserNotification } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
+import { formatDistanceToNow } from 'date-fns';
 
 // props for styling
 interface NotificationBellProps {
@@ -50,7 +51,7 @@ export default function NotificationBell({ className, isFloating = false }: Noti
 
     const unsubscribeGlobal = onValue(globalMessagesRef, (snapshot) => {
       const messagesList = snapshot.exists() ? Object.entries(snapshot.val()).map(([id, data]) => ({ id, ...(data as object) })) : [];
-      setAdminMessages(messagesList.reverse());
+      setAdminMessages(messagesList);
     }, (error) => console.error("Error fetching global messages:", error));
 
     const unsubscribeDirect = onValue(directMessagesRef, (snapshot) => {
@@ -145,14 +146,21 @@ export default function NotificationBell({ className, isFloating = false }: Noti
               return (
                 <div
                   key={message.id}
-                  className={cn("p-3 rounded-md border text-sm", isUnread ? "bg-blue-500/10 border-blue-500/30 text-foreground" : "bg-muted/10 border-border/30 text-muted-foreground")}
+                  className="p-3 rounded-lg flex items-start gap-3 bg-muted/10 border border-border/30 hover:bg-muted/20 transition-colors"
                 >
-                  <div className="flex items-center text-xs mb-1">
-                    <Icon className="h-4 w-4 mr-1.5" />
-                    <span>{title}</span>
+                  <div className="relative">
+                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                        <Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    {isUnread && <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-blue-500 ring-2 ring-muted" />}
                   </div>
-                  <p className="font-medium text-foreground">{message.text}</p>
-                  <p className="text-xs mt-1">{new Date(message.timestamp).toLocaleString()}</p>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                        <p className="text-xs font-semibold text-foreground">{title}</p>
+                        <p className="text-xs text-muted-foreground">{message.timestamp ? formatDistanceToNow(new Date(message.timestamp), { addSuffix: true }) : ''}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{message.text}</p>
+                  </div>
                 </div>
               );
             })

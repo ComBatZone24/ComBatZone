@@ -337,10 +337,10 @@ export const settingsCategories = [
     description: 'Configure daily login rewards for users.',
   },
   {
-    title: 'Ad Link Task (Simple)',
-    href: '/admin/settings/ad-monetization',
-    icon: DollarSign,
-    description: 'Set a single Adsterra link for users to earn points.',
+    title: 'Daily Click & Earn Task',
+    href: '/admin/settings/click-and-earn',
+    icon: MousePointerClick,
+    description: 'Set daily targets, rewards, and ad links for the click task.',
   },
   {
     title: 'Offer Wall & Postback',

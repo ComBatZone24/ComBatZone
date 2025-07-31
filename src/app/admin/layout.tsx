@@ -346,10 +346,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           const userData = snapshot.val();
           const userRole = userData?.role || 'user';
+          
+          setAppUser({ id: user.uid, ...userData } as AppUserType);
 
           if (userRole === 'admin') {
               console.log(`AdminLayout: User is admin. Allowing access.`);
-              setAppUser({ id: user.uid, ...userData } as AppUserType);
+              setIsAuthCheckComplete(true);
           } else if (userRole === 'delegate') {
               console.log(`AdminLayout: User is delegate. Verifying permissions...`);
               const permissions = userData.delegatePermissions?.accessScreens || {};
@@ -360,19 +362,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   toast({ title: "Access Denied", description: "You have not been assigned any delegate permissions.", variant: "destructive" });
                   router.push('/');
               } else {
-                  setAppUser({ id: user.uid, ...userData } as AppUserType);
                   const hasDashboardAccess = !!permissions.dashboard;
-                  
                   if (pathname === '/admin/dashboard' && !hasDashboardAccess) {
                       const firstAllowedPage = accessibleScreens[0].href;
                       console.log(`AdminLayout: Delegate lacks dashboard access. Redirecting to their first available page: ${firstAllowedPage}`);
                       router.replace(firstAllowedPage);
                   }
+                  setIsAuthCheckComplete(true);
               }
           } else {
               console.log(`AdminLayout: User role '${userRole}' denied admin access. Redirecting.`);
               toast({ title: "Access Denied", description: "You do not have permission to view this page.", variant: "destructive"});
               router.push('/'); 
+              setIsAuthCheckComplete(true);
           }
       } catch (error) {
           const errorMessage = String(error instanceof Error ? error.message : error).toUpperCase();
@@ -387,8 +389,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               toast({ title: "Error", description: "Could not verify admin status.", variant: "destructive"});
           }
           router.push('/');
-      } finally {
-        setIsAuthCheckComplete(true);
+          setIsAuthCheckComplete(true);
       }
     });
      return () => unsubscribe();
@@ -418,5 +419,3 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     </SidebarProvider>
   );
 }
-
-    

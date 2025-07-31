@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowLeft, Loader2, Save, AlertCircle, Coins, Target, Trash2, Link as LinkIcon, PlusCircle, X, MousePointerClick, Clock, Repeat as RepeatIcon } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, AlertCircle, Coins, Target, Trash2, Link as LinkIcon, PlusCircle, X, MousePointerClick, Clock, Repeat as RepeatIcon, UploadCloud } from 'lucide-react';
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -24,6 +24,7 @@ import PageTitle from "@/components/core/page-title";
 import { Switch } from "@/components/ui/switch";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Textarea } from "@/components/ui/textarea";
 
 
 const formSchema = z.object({
@@ -63,6 +64,7 @@ export default function AdminAdLinkSettingsPage() {
   const [newLinkTitle, setNewLinkTitle] = useState('');
   const [newLinkUrl, setNewLinkUrl] = useState('');
   const [isAddingLink, setIsAddingLink] = useState(false);
+  const [bulkUrls, setBulkUrls] = useState("");
   
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -187,6 +189,42 @@ export default function AdminAdLinkSettingsPage() {
         toast({ title: "Error", description: `Could not delete all links: ${error.message}`, variant: "destructive" });
     }
   };
+
+  const handleAddBulkLinks = async () => {
+    const urls = bulkUrls.split(/[\s,]+/).filter(url => {
+        try {
+            new URL(url.trim());
+            return true;
+        } catch (e) { return false; }
+    });
+
+    if (urls.length === 0) {
+        toast({ title: "No Valid URLs", description: "Please paste at least one valid URL.", variant: "destructive" });
+        return;
+    }
+
+    setIsAddingLink(true);
+    try {
+        const updates: Record<string, any> = {};
+        urls.forEach(url => {
+            const newLinkKey = push(ref(database, 'clickAndEarnLinks')).key;
+            if (newLinkKey) {
+                updates[newLinkKey] = {
+                    title: `Ad Link ${Math.floor(1000 + Math.random() * 9000)}`,
+                    url: url.trim(),
+                    createdAt: new Date().toISOString()
+                };
+            }
+        });
+        await update(ref(database, 'clickAndEarnLinks'), updates);
+        toast({ title: "Links Added", description: `${urls.length} new links have been added.` });
+        setBulkUrls('');
+    } catch (error: any) {
+        toast({ title: "Error", description: `Could not add bulk links: ${error.message}`, variant: "destructive" });
+    } finally {
+        setIsAddingLink(false);
+    }
+  };
   
   return (
     <Form {...form}>
@@ -259,6 +297,13 @@ export default function AdminAdLinkSettingsPage() {
                         {isAddingLink && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>} Add Link
                     </Button>
                 </div>
+                 <Separator className="my-6"/>
+                <h3 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2"><UploadCloud className="h-5 w-5 text-accent"/>Bulk Add Links</h3>
+                <div className="space-y-2">
+                    <Label htmlFor="bulk-urls">Paste Multiple URLs</Label>
+                    <Textarea id="bulk-urls" placeholder="Paste URLs here, separated by new lines, spaces, or commas." value={bulkUrls} onChange={(e) => setBulkUrls(e.target.value)} className="h-24 bg-input/50"/>
+                    <Button type="button" onClick={handleAddBulkLinks} className="w-full" disabled={isAddingLink}><UploadCloud className="mr-2"/> Add Links to List</Button>
+                </div>
             </GlassCard>
             <GlassCard className="p-0 flex flex-col">
                 <div className="p-4 border-b border-border/30 flex justify-between items-center">
@@ -273,7 +318,7 @@ export default function AdminAdLinkSettingsPage() {
                       </AlertDialogContent>
                     </AlertDialog>
                 </div>
-                 <ScrollArea className="h-72">
+                 <ScrollArea className="h-96">
                     {isLoadingLinks ? <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div> :
                      links.length === 0 ? <p className="text-center text-muted-foreground py-10">No links added yet.</p> :
                         <ul className="divide-y divide-border/30">

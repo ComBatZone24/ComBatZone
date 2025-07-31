@@ -242,6 +242,43 @@ export default function ProfilePage() {
     catch (error) { toast({ title: "Logout Failed", description: "Could not log you out completely. Please try again.", variant: "destructive" }); }
   };
 
+  const handleShare = async () => {
+    if (!appUser || !appUser.referralCode || !globalSettings) {
+      toast({ title: "Cannot Share", description: "Your referral information is not available.", variant: "destructive" });
+      return;
+    }
+
+    const shareLinkBase = globalSettings.shareLinkBaseUrl || window.location.origin;
+    const referralLink = `${shareLinkBase}?ref=${appUser.referralCode}`;
+    const shareTitle = `Join me on ${globalSettings.appName || 'Arena Ace'}!`;
+    const shareText = `Hey! Join me on ${globalSettings.appName || 'Arena Ace'}, the best eSports app in Pakistan, and let's win together! Use my link to get a special bonus:`;
+
+    if (navigator.share) {
+      // Use Web Share API on mobile
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: `${shareText}\n${referralLink}`,
+          url: referralLink,
+        });
+        toast({ title: "Thanks for sharing!" });
+      } catch (error) {
+        console.error('Error sharing:', error);
+        toast({ title: "Share Canceled", description: "The share dialog was closed.", variant: "default" });
+      }
+    } else {
+      // Fallback for desktop: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(`${shareText}\n${referralLink}`);
+        toast({ title: "Link Copied!", description: "Your referral link has been copied to the clipboard." });
+      } catch (err) {
+        console.error('Failed to copy: ', err);
+        toast({ title: "Copy Failed", description: "Could not copy the link to your clipboard.", variant: "destructive" });
+      }
+    }
+  };
+
+
   if (isLoading || isLoadingSettings) return <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]"><Loader2 className="h-16 w-16 animate-spin text-accent" /><p className="ml-4 text-lg">Loading profile...</p></div>;
 
   if (!firebaseUser) return <div className="text-center py-20"><AlertTriangle className="mx-auto h-16 w-16 text-destructive mb-4" /><h1 className="text-2xl font-semibold mb-2">Access Denied</h1><p className="mb-6">You need to be logged in to view your profile.</p><Button variant="default" asChild><Link href="/auth/login"><LogIn className="mr-2 h-4 w-4" />Login</Link></Button></div>;
@@ -321,7 +358,7 @@ export default function ProfilePage() {
                         <Input value={appUser.referralCode} readOnly className="font-mono tracking-wider border-0 bg-transparent"/>
                         <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(appUser.referralCode || '')}><Copy className="h-4 w-4"/></Button>
                     </div>
-                    <Button className="w-full neon-accent-bg">
+                    <Button onClick={handleShare} className="w-full neon-accent-bg">
                       <Share2 className="mr-2 h-4 w-4" /> Share App
                     </Button>
                 </div>

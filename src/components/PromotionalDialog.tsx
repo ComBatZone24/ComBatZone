@@ -15,59 +15,22 @@ import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import RupeeIcon from './core/rupee-icon';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { useSettings } from '@/context/SettingsContext';
 
-type PromoPopupSettings = NonNullable<GlobalSettings['promoPopup']>;
-
-const defaultSettings: PromoPopupSettings = {
-  enabled: false,
-  promoType: 'media',
-  promoMediaUrl: '',
-  promoMediaType: 'image',
-  selectedItemId: null,
-  displayLocation: 'homepage',
-  promoTitle: '',
-  promoDescription: '',
-  promoButtonText: '',
-  promoButtonLink: '',
-};
 
 const PromotionalDialog = () => {
   const { user } = useAuth();
+  const { settings: globalSettings, isLoadingSettings } = useSettings();
   const pathname = usePathname();
-  const [settings, setSettings] = useState<PromoPopupSettings | null>(null);
   const [promoContent, setPromoContent] = useState<Tournament | ShopItem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
-  // Effect to fetch settings from Firebase
-  useEffect(() => {
-    try {
-      const db = getDatabase();
-      const settingsRef = ref(db, 'globalSettings/promoPopup');
-      
-      const unsubscribe = onValue(settingsRef, (snapshot) => {
-        const fetchedSettings = snapshot.val();
-        if (fetchedSettings) {
-          setSettings({ ...defaultSettings, ...fetchedSettings });
-        } else {
-          setSettings(defaultSettings);
-        }
-        setIsLoading(false);
-      }, (error) => {
-        console.error("Error fetching promo settings:", error);
-        setIsLoading(false);
-      });
-
-      return () => unsubscribe();
-    } catch (error) {
-      console.error("Firebase DB not initialized for promo dialog.", error);
-      setIsLoading(false);
-    }
-  }, []);
+  const settings = globalSettings?.promoPopup;
 
   // Effect to decide whether to show the dialog
   useEffect(() => {
-    if (isLoading || !settings) {
+    if (isLoadingSettings || !settings) {
       return; // Wait for settings to load
     }
 
@@ -88,8 +51,10 @@ const PromotionalDialog = () => {
     // If all checks pass, prepare and show the dialog
     const showPromo = async () => {
       setPromoContent(null);
+      
       // If it's a specific item, fetch its data
       if (settings.promoType !== 'media' && settings.selectedItemId) {
+        setIsLoadingContent(true);
         const path = settings.promoType === 'tournament' ? 'tournaments' : 'shopItems';
         try {
           const db = getDatabase();
@@ -98,14 +63,16 @@ const PromotionalDialog = () => {
           if (snapshot.exists()) {
             setPromoContent({ id: snapshot.key, ...snapshot.val() });
           } else {
-             // If the linked item doesn't exist, don't show the promo
              console.warn(`Promo item ${settings.selectedItemId} not found in ${path}.`);
+             setIsLoadingContent(false);
              return;
           }
         } catch (e) {
           console.error("Error fetching promo content item:", e);
+          setIsLoadingContent(false);
           return; // Don't show promo if content fails to load
         }
+        setIsLoadingContent(false);
       }
       
       // All good, show the dialog and mark it as seen for this session
@@ -115,14 +82,16 @@ const PromotionalDialog = () => {
 
     showPromo();
 
-  }, [isLoading, settings, user, pathname]);
+  }, [isLoadingSettings, settings, user, pathname]);
 
   const handleClose = () => {
     setIsVisible(false);
   };
   
   const renderContent = () => {
-    switch (settings?.promoType) {
+    if (!settings) return null;
+
+    switch (settings.promoType) {
         case 'tournament':
             const tournament = promoContent as Tournament;
             return tournament ? (
@@ -158,8 +127,7 @@ const PromotionalDialog = () => {
             ) : <Loader2 className="animate-spin h-8 w-8 text-accent m-auto"/>;
         case 'media':
         default:
-            if (!settings) return null;
-            const videoId = settings.promoType === 'media' && settings.promoMediaType === 'video' ? getYoutubeVideoId(settings.promoMediaUrl) : null;
+            const videoId = settings.promoMediaType === 'video' ? getYoutubeVideoId(settings.promoMediaUrl) : null;
             return (
                 <div className="w-full text-center">
                      {settings.promoMediaUrl && (
@@ -199,7 +167,7 @@ const PromotionalDialog = () => {
               <DialogTitle className="sr-only">Promotion</DialogTitle>
               <DialogDescription className="sr-only">A special announcement from ComBatZon.</DialogDescription>
             </DialogHeader>
-            {renderContent()}
+            {isLoadingContent ? <div className="min-h-[200px] flex items-center justify-center"><Loader2 className="animate-spin h-8 w-8 text-accent"/></div> : renderContent()}
         </DialogContent>
     </Dialog>
   );

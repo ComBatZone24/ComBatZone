@@ -29,18 +29,34 @@ const poppins = Poppins({
 });
 
 const APP_NAME = "ComBatZone";
-const APP_DESCRIPTION = "Join ComBatZone for daily Free Fire & PUBG eSports tournaments in Pakistan. Compete to win prizes and earn money through our Watch and Earn program. The ultimate Pakistani gaming arena awaits!";
+const APP_DESCRIPTION = "Join ComBatZone for daily eSports tournaments for games like PUBG, Free Fire, and BGMI in Pakistan. Compete in our gaming arena, climb the leaderboards, and win real prizes. Your journey to pro gaming starts here!";
 const APP_URL = "https://com-bat-zone-92v2.vercel.app/";
 
 export const metadata: Metadata = {
   applicationName: APP_NAME,
   title: {
-    default: `${APP_NAME} - Pakistan's eSports & Earning Platform`,
+    default: `${APP_NAME}: Pakistan's eSports Tournaments & Gaming Platform`,
     template: `%s | ${APP_NAME}`,
   },
   description: APP_DESCRIPTION,
   manifest: '/manifest.webmanifest',
-  keywords: ["esports pakistan", "pubg tournaments pakistan", "free fire tournaments", "online earning pakistan", "watch and earn", "gaming arena pakistan", "ComBatZone", "mobile gaming"],
+  keywords: [
+    "esports pakistan", 
+    "pubg tournaments pakistan", 
+    "free fire tournaments", 
+    "gaming arena pakistan", 
+    "ComBatZone", 
+    "mobile gaming", 
+    "online gaming tournaments",
+    "competitive gaming pakistan",
+    "BGMI tournaments",
+    "eSports platform",
+    "win cash prizes gaming",
+    "pro gaming pakistan",
+    "daily tournaments",
+    "esports community",
+    "mobile esports"
+  ],
   authors: [{ name: "ComBatZone Admin", url: APP_URL }],
   creator: "ComBatZone",
   publisher: "ComBatZone",
@@ -49,21 +65,21 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: APP_URL,
-    title: `${APP_NAME} - Pakistan's eSports & Earning Platform`,
+    title: `${APP_NAME}: Pakistan's eSports Tournaments & Gaming Platform`,
     description: APP_DESCRIPTION,
     siteName: APP_NAME,
     images: [{
       url: `${APP_URL}/og-image.png`, // Assuming you will add an og-image.png to your /public folder
       width: 1200,
       height: 630,
-      alt: `${APP_NAME} Logo and Promotional Banner`,
+      alt: `Logo and promotional banner for ${APP_NAME}, the ultimate eSports gaming arena.`,
     }],
   },
 
   // Twitter Card Metadata
   twitter: {
     card: "summary_large_image",
-    title: `${APP_NAME} - Pakistan's eSports & Earning Platform`,
+    title: `${APP_NAME}: Pakistan's eSports Tournaments & Gaming Platform`,
     description: APP_DESCRIPTION,
     images: [`${APP_URL}/og-image.png`], // Twitter uses the same image
     creator: "@YourTwitterHandle", // Replace with your actual Twitter handle if you have one

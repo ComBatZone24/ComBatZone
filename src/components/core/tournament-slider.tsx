@@ -99,7 +99,7 @@ const TournamentSlider: React.FC<TournamentSliderProps> = ({ tournaments, slideI
                 >
                   {tournament.game} - {tournament.mode}
                 </p>
-                <Link href={`/tournaments/all?tournamentId=${tournament.id}`} passHref legacyBehavior>
+                <Link href={`/tournaments/${tournament.id}`} passHref legacyBehavior>
                   <Button 
                     variant="default" 
                     size="lg" // Increased button size
