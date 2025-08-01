@@ -19,10 +19,10 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectSe
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { countryCodes } from "@/lib/country-codes";
 
-// Firebase Client SDK
+// Firebase
 import { auth, database } from '@/lib/firebase/config';
-import { createUserWithEmailAndPassword, deleteUser, signInWithEmailAndPassword } from 'firebase/auth';
-import { ref, set, get, query, orderByChild, equalTo, update } from 'firebase/database';
+import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
+import { ref, set, get, query, orderByChild, equalTo, update, serverTimestamp, push, runTransaction } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import type { User as AppUserType, WalletTransaction } from '@/types';
 
@@ -134,20 +134,19 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         gameUid: data.gameUid,
         gameName: data.username, 
         referralCode: ownReferralCode,
-        appliedReferralCode: null,
+        appliedReferralCode: data.referralCode?.trim() ? data.referralCode.trim().toUpperCase() : null,
         referralBonusReceived: 0,
         totalReferralCommissionsEarned: 0,
         watchAndEarnPoints: 0,
-        location: null, // Location is no longer fetched on signup
+        location: null,
       };
-
-      const updates: Record<string, any> = {};
       
       const usernameSnapshot = await get(ref(database, `usernames/${data.username.toLowerCase()}`));
       if (usernameSnapshot.exists()) {
           throw new Error("Username already taken");
       }
 
+      // Check for referral bonus
       if (data.referralCode?.trim()) {
         const friendCode = data.referralCode.trim().toUpperCase();
         if (friendCode !== ownReferralCode) {
@@ -161,30 +160,18 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
                 const referrerSnapshot = await get(referrerQuery);
 
                 if (referrerSnapshot.exists()) {
-                    let referrerId = '';
-                    let referrerData: AppUserType | null = null;
-                    referrerSnapshot.forEach(childSnapshot => {
-                        referrerId = childSnapshot.key!;
-                        referrerData = childSnapshot.val() as AppUserType;
-                    });
-
-                    if (referrerId && referrerId !== firebaseUser.uid) {
-                        newUserRecord.wallet += bonusAmount;
-                        newUserRecord.referralBonusReceived = bonusAmount;
-                        newUserRecord.appliedReferralCode = friendCode;
-                        
-                        updates[`/users/${referrerId}/wallet`] = (referrerData?.wallet || 0) + bonusAmount;
-                        updates[`/users/${referrerId}/totalReferralCommissionsEarned`] = (referrerData?.totalReferralCommissionsEarned || 0) + bonusAmount;
-                    }
+                    newUserRecord.wallet = bonusAmount;
+                    newUserRecord.referralBonusReceived = bonusAmount;
+                    // Note: We don't credit the referrer here to avoid permission issues.
+                    // This is now handled on the wallet page or via an admin process.
                 }
             }
         }
       }
       
-      updates[`/users/${firebaseUser.uid}`] = newUserRecord;
-      updates[`/usernames/${data.username.toLowerCase()}`] = firebaseUser.uid;
-
-      await update(ref(database), updates);
+      // Write new user data in one go
+      await set(ref(database, `/users/${firebaseUser.uid}`), newUserRecord);
+      await set(ref(database, `/usernames/${data.username.toLowerCase()}`), firebaseUser.uid);
 
       toast({ title: "Account Created!", description: "Welcome! You are now logged in.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
       router.push('/');
@@ -196,6 +183,8 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
       else if (error.message === "Username already taken") errorMessage = "This username is already taken. Please choose another one.";
       else if (String(error.message).includes("PERMISSION_DENIED")) {
         errorMessage = "Permission denied. Please check database rules or contact support.";
+      } else {
+        console.error("Signup failed with error:", error);
       }
       toast({ title: "Signup Failed", description: errorMessage, variant: "destructive" });
       setStep(1); 

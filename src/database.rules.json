@@ -47,7 +47,7 @@
     },
     
     "usernames": {
-      ".read": "auth != null",
+      ".read": true,
       "$username": {
         ".write": "!data.exists() || (data.exists() && data.val() === auth.uid)",
         ".validate": "newData.isString()"
@@ -258,3 +258,5 @@
     }
   }
 }
+
+    
