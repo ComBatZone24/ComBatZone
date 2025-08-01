@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -21,6 +22,9 @@ import { countryCodes } from "@/lib/country-codes";
 // Server Action
 import { signupUser } from "@/app/auth/actions";
 import { useToast } from '@/hooks/use-toast';
+import { database } from '@/lib/firebase/config';
+import { ref, get } from 'firebase/database';
+
 
 // Form validation schema
 const signupSchema = z.object({
@@ -73,8 +77,6 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
     },
   });
   
-  // No longer need to check username availability on the client side.
-  // The server action will handle this.
   const nextStep = async () => {
     let fieldsToValidate: (keyof SignupFormValues)[] = [];
     if (step === 1) fieldsToValidate = ["username"];

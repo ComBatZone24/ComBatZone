@@ -3,7 +3,6 @@
 
 import { z } from 'zod';
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
-import { getClientIpAddress, getGeolocationData } from '@/lib/firebase/geolocation';
 import type { User as AppUserType } from '@/types';
 
 
@@ -30,13 +29,10 @@ const generateReferralCode = (username: string) => {
 export async function signupUser(data: any): Promise<{ success: boolean; error?: string; userId?: string }> {
   let userRecord;
   try {
-    // 1. Get client IP address first. This is crucial as it depends on the request headers.
-    const clientIp = await getClientIpAddress();
-
-    // 2. Validate incoming data
+    // 1. Validate incoming data
     const validatedData = signupSchema.parse(data);
 
-    // 3. Check if username already exists in the database
+    // 2. Check if username already exists in the database
     const usersRef = adminDb.ref('users');
     const usernameQuery = usersRef.orderByChild('username').equalTo(validatedData.username);
     const usernameSnapshot = await usernameQuery.once('value');
@@ -44,7 +40,7 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
       throw new Error("Username is already taken.");
     }
     
-    // 4. Create user in Firebase Authentication
+    // 3. Create user in Firebase Authentication
     userRecord = await adminAuth.createUser({
       email: validatedData.email,
       password: validatedData.password,
@@ -52,12 +48,11 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
       emailVerified: false, 
     });
     
-    // 5. Prepare user data for Realtime Database
-    const locationData = clientIp ? await getGeolocationData(clientIp) : null;
+    // Geolocation logic has been removed as it was causing server-side errors in Median.co environment.
     const selectedDialCode = data.countryCode ? data.countryCode.split('-')[0] : '';
-
     const ownReferralCode = generateReferralCode(validatedData.username);
 
+    // 4. Prepare user data for Realtime Database
     const newUserRecord: AppUserType = {
       id: userRecord.uid,
       username: validatedData.username,
@@ -71,19 +66,19 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
       onlineStreak: 1,
       createdAt: new Date().toISOString(),
       gameUid: validatedData.gameUid || null,
-      gameName: validatedData.username,
+      gameName: validatedData.username, 
       referralCode: ownReferralCode,
       appliedReferralCode: null,
       referredByDelegate: null,
       referralBonusReceived: 0,
       totalReferralCommissionsEarned: 0,
-      location: locationData,
+      location: null, // Set to null as we are no longer fetching geolocation
       watchAndEarnPoints: 0,
     };
     
     const updates: Record<string, any> = {};
 
-    // 6. Handle Referral Logic
+    // 5. Handle Referral Logic
     if (data.referralCode?.trim()) {
         const friendCode = data.referralCode.trim().toUpperCase();
         if (friendCode !== ownReferralCode) {
@@ -91,6 +86,7 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
             const settings = settingsSnapshot.val();
             const bonusAmount = settings?.referralBonusAmount || 0;
             
+            // This is the corrected, efficient query
             const referrerQuery = usersRef.orderByChild('referralCode').equalTo(friendCode);
             const referrerSnapshot = await referrerQuery.once('value');
 
@@ -122,7 +118,7 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
 
     updates[`/users/${userRecord.uid}`] = newUserRecord;
     
-    // 7. Perform the final database write
+    // 6. Perform the final database write
     await adminDb.ref().update(updates);
 
     return { success: true, userId: userRecord.uid };

@@ -28,7 +28,8 @@ import { ref, get, update } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import type { User as AppUserType } from '@/types';
 import { adminNavItems } from '@/config/nav';
-import { getClientIpAddress, getGeolocationData } from '@/lib/firebase/geolocation';
+// Removed geolocation imports as they are server-only
+// import { getClientIpAddress, getGeolocationData } from '@/lib/firebase/geolocation';
 
 const loginSchema = z.object({
   emailOrPhone: z.string().email({ message: "Please enter a valid email address" }),
@@ -99,8 +100,9 @@ export function LoginForm() {
         
         if (database) {
             const userRef = ref(database, `users/${firebaseUser.uid}`);
-            const ipAddress = await getClientIpAddress();
-            const locationData = ipAddress ? await getGeolocationData(ipAddress) : null;
+            
+            // NOTE: Location data cannot be fetched on the client. This should be handled by a server function if needed.
+            // For now, we only update lastLogin and streak.
             
             const userSnapshot = await get(userRef);
             if (userSnapshot.exists()) {
@@ -117,9 +119,11 @@ export function LoginForm() {
                 if (diffInDays === 0) newStreak = userProfileData.onlineStreak || 1; 
                 else if (diffInDays === 1) newStreak = (userProfileData.onlineStreak || 0) + 1;
               }
-              await update(userRef, { lastLogin: new Date().toISOString(), onlineStreak: newStreak, location: locationData });
+              // Only update non-location data on login
+              await update(userRef, { lastLogin: new Date().toISOString(), onlineStreak: newStreak });
             } else {
-              const basicProfile = { email: firebaseUser.email, username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User', role: 'user', isActive: true, lastLogin: new Date().toISOString(), onlineStreak: 1, createdAt: new Date().toISOString(), wallet: 0, location: locationData };
+              // Create a basic profile if one doesn't exist
+              const basicProfile = { email: firebaseUser.email, username: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'New User', role: 'user', isActive: true, lastLogin: new Date().toISOString(), onlineStreak: 1, createdAt: new Date().toISOString(), wallet: 0 };
               await update(userRef, basicProfile);
               userProfileData = { id: firebaseUser.uid, ...basicProfile };
             }
