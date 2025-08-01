@@ -17,6 +17,7 @@ import Image from 'next/image';
 import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { mockGlobalSettings } from '@/lib/mock-data';
 import { useAuth } from '@/context/AuthContext';
+import AdSenseDisplayAd from '@/components/ads/AdSenseDisplayAd'; // Import the new component
 
 
 export default function WalletPage() {
@@ -108,6 +109,12 @@ export default function WalletPage() {
         settings={globalSettings}
         onRefresh={refreshUser}
       />
+      
+      {/* AdSense Display Ad Unit */}
+      <GlassCard className="p-4 md:p-6 text-center">
+          <p className="text-xs text-muted-foreground mb-2">Advertisement</p>
+          <AdSenseDisplayAd />
+      </GlassCard>
     </div>
   );
 }

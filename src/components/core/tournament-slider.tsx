@@ -40,7 +40,7 @@ const TournamentSlider: React.FC<TournamentSliderProps> = ({ tournaments, slideI
     }, slideInterval);
 
     return () => clearInterval(interval);
-  }, [tournaments, slideInterval, currentIndex]); // Added currentIndex to reset interval on manual nav
+  }, [currentIndex]); // Reset interval on manual nav
 
   if (!tournaments || tournaments.length === 0) {
     return (
@@ -64,53 +64,45 @@ const TournamentSlider: React.FC<TournamentSliderProps> = ({ tournaments, slideI
         const showCountdown = tournament.status === 'upcoming' && isValidStartTime && isFuture(parsedStartTime);
 
         return (
-            <div
-              key={tournament.id || index}
-              className={cn(
-                "absolute inset-0 transition-opacity duration-1000 ease-in-out",
-                index === currentIndex ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-              )}
-            >
-              <Image
-                src={loopDisplayUrl}
-                alt={tournament.name || 'Tournament Banner'}
-                fill
-                style={{ objectFit: 'cover' }}
-                priority={index === 0} 
-                data-ai-hint={loopHint}
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                className="transform group-hover:scale-105 transition-transform duration-500 ease-out"
-              />
-              {showCountdown && index === currentIndex && (
-                <div className="absolute top-3 left-3 z-20 bg-background/70 p-1.5 rounded-md shadow-lg backdrop-blur-sm">
-                  <CountdownTimer targetDate={tournament.startTime} size="sm" className="text-accent-foreground" />
-                </div>
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent flex flex-col justify-end p-6 md:p-10">
-                <h2 
-                  className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-3 leading-tight" 
-                  style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
-                >
-                  {tournament.name}
-                </h2>
-                <p 
-                  className="text-md md:text-xl text-gray-100 mb-4 md:mb-6" 
-                  style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.6)' }}
-                >
-                  {tournament.game} - {tournament.mode}
-                </p>
-                <Link href={`/tournaments/${tournament.id}`} passHref legacyBehavior>
-                  <Button 
-                    variant="default" 
-                    size="lg" // Increased button size
-                    className="neon-accent-bg self-start text-base md:text-lg py-3 px-6 rounded-lg shadow-lg hover:shadow-accent/60 transition-all duration-300 transform hover:scale-105"
-                  >
-                    View Details
-                  </Button>
-                </Link>
+          <div
+            key={tournament.id || index}
+            className={cn(
+              "absolute inset-0 transition-opacity duration-1000 ease-in-out",
+              index === currentIndex ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+            )}
+            aria-hidden={index !== currentIndex}
+          >
+            <Image
+              src={loopDisplayUrl}
+              alt={tournament.name || 'Tournament Banner'}
+              fill
+              style={{ objectFit: 'cover' }}
+              priority={index === 0}
+              data-ai-hint={loopHint}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="transform group-hover:scale-105 transition-transform duration-500 ease-out"
+            />
+            {showCountdown && index === currentIndex && (
+              <div className="absolute top-3 left-3 z-20 bg-background/70 p-1.5 rounded-md shadow-lg backdrop-blur-sm">
+                <CountdownTimer targetDate={tournament.startTime} size="sm" className="text-accent-foreground" />
               </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent flex flex-col justify-end p-6 md:p-10">
+              <h2
+                className="text-2xl md:text-4xl font-bold text-white mb-2 md:mb-3 leading-tight"
+                style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}
+              >
+                {tournament.name}
+              </h2>
+              <p
+                className="text-md md:text-xl text-gray-100"
+                style={{ textShadow: '1px 1px 3px rgba(0,0,0,0.6)' }}
+              >
+                {tournament.game} - {tournament.mode}
+              </p>
             </div>
-        )
+          </div>
+        );
       })}
       {tournaments.length > 1 && (
         <>

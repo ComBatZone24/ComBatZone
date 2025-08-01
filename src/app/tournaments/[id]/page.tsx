@@ -129,11 +129,11 @@ const TournamentDetailPageClient: React.FC<TournamentDetailPageClientProps> = ({
 
   useEffect(() => {
     if (isJoinDialogOpen) {
-      const mode = currentTournament?.mode || initialTournament.mode;
+      const mode = currentTournament?.mode || initialTournament?.mode;
       let count = (mode === 'Duo' ? 1 : mode === 'Squad' ? 3 : mode === 'Custom' ? numCustomTeammates : 0);
       setTeamMembers(prev => Array(count).fill(null).map((_, i) => prev[i] || { gameName: '', uid: '' }));
     }
-  }, [isJoinDialogOpen, currentTournament?.mode, initialTournament.mode, numCustomTeammates]);
+  }, [isJoinDialogOpen, currentTournament?.mode, initialTournament?.mode, numCustomTeammates]);
 
   if (!currentTournament) {
     return (
@@ -162,7 +162,7 @@ const TournamentDetailPageClient: React.FC<TournamentDetailPageClientProps> = ({
       if (parsedStartTime) {
         setIsCountdownFinished(!isFuture(parsedStartTime));
       }
-  }, [startTime]);
+  }, [startTime, parsedStartTime]);
   
   const handleOpenJoinDialog = () => setIsJoinDialogOpen(true);
   

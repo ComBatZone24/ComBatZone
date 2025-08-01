@@ -170,23 +170,21 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament: initialTour
   return (
     <>
       <GlassCard className="flex flex-col overflow-hidden transition-all duration-300 w-full max-w-sm mx-auto group">
-        <Link href={`/tournaments/${id}`} className="block">
-          <div className="relative w-full h-40 md:h-48">
-            <Image src={finalBannerUrl} alt={name} fill style={{ objectFit: "cover" }} className="transition-transform duration-500 group-hover:scale-110" sizes="(max-width: 768px) 100vw, 33vw" data-ai-hint={hint} priority />
-            <div className="absolute inset-0 flex flex-col justify-between p-3">
-              <div className="flex justify-between items-start">
-                <Badge variant="secondary" className={cn("uppercase text-xs px-1.5 py-0.5 bg-black/50 border-border", {
-                  'text-red-400 border-red-400 animate-pulse': status === 'live',
-                  'text-yellow-400 border-yellow-400': status === 'upcoming',
-                  'text-green-400 border-green-400': status === 'completed',
-                })}>{status}</Badge>
-                {showCountdown && <CountdownTimer targetDate={startTime} size="sm" className="text-white" />}
-              </div>
+        <div className="relative w-full h-40 md:h-48">
+          <Image src={finalBannerUrl} alt={name} fill style={{ objectFit: "cover" }} className="transition-transform duration-500 group-hover:scale-110" sizes="(max-width: 768px) 100vw, 33vw" data-ai-hint={hint} priority />
+          <div className="absolute inset-0 flex flex-col justify-between p-3">
+            <div className="flex justify-between items-start">
+              <Badge variant="secondary" className={cn("uppercase text-xs px-1.5 py-0.5 bg-black/50 border-border", {
+                'text-red-400 border-red-400 animate-pulse': status === 'live',
+                'text-yellow-400 border-yellow-400': status === 'upcoming',
+                'text-green-400 border-green-400': status === 'completed',
+              })}>{status}</Badge>
+              {showCountdown && <CountdownTimer targetDate={startTime} size="sm" className="text-white" />}
             </div>
           </div>
-        </Link>
+        </div>
         <div className="p-3 flex flex-col flex-grow">
-          <Link href={`/tournaments/${id}`} className="block">
+          <div>
             <div className="mb-2"> 
               <h3 className="font-bold text-lg text-foreground leading-tight mb-0.5">{name}</h3> 
               <p className="text-xs text-muted-foreground">{game} - {mode}{map ? ` - ${map}` : ''}</p> 
@@ -202,7 +200,7 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament: initialTour
               <Progress value={(joinedPlayersCount / maxPlayers) * 100} className="w-full h-1.5 bg-accent/20" indicatorClassName="bg-accent" />
              <p className="text-xs text-muted-foreground mt-1 text-right">{joinedPlayersCount} / {maxPlayers} Players</p>
             </div>
-          </Link>
+          </div>
           <div className="mt-auto grid grid-cols-3 gap-2">
             <Dialog open={isRulesDialogOpen} onOpenChange={setIsRulesDialogOpen}>
               <DialogTrigger asChild>
@@ -212,9 +210,11 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament: initialTour
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2"><ClipboardList/> Rules for {name}</DialogTitle>
                 </DialogHeader>
-                <div className="py-4 whitespace-pre-line text-sm text-muted-foreground max-h-60 overflow-y-auto">
-                  {customRules || "No special rules for this tournament."}
-                </div>
+                 <ScrollArea className="max-h-[60vh] -mx-6 px-6">
+                    <div className="py-4 whitespace-pre-wrap text-sm text-muted-foreground bg-background/50 p-4 rounded-md border">
+                        {customRules || "No special rules for this tournament."}
+                    </div>
+                 </ScrollArea>
               </DialogContent>
             </Dialog>
 

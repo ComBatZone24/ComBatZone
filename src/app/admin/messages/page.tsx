@@ -94,8 +94,9 @@ export default function AdminMessagesPage() {
 
         if (result.success) {
              if (!database) return;
+            // The redundant "[Broadcast]" prefix has been removed from here.
             await push(ref(database, 'adminMessages'), {
-                text: `[Broadcast] ${newMessageText}`,
+                text: newMessageText,
                 timestamp: serverTimestamp(),
             });
             setNewMessageText(''); 
@@ -313,7 +314,7 @@ export default function AdminMessagesPage() {
           <AlertCircle className="h-5 w-5 !text-primary" />
           <AlertTitle className="!text-primary">Important</AlertTitle>
           <AlertDescription className="!text-primary/80 text-sm">
-            Broadcast messages will attempt to send a Push Notification via OneSignal and are also logged here. Direct messages are private to the user but are also logged here for your reference.
+            Broadcast messages will attempt to send a Push Notification and are also logged here. Direct messages are private to the user but are also logged here for your reference.
           </AlertDescription>
         </Alert>
       </div>
