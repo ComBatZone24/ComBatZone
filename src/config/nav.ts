@@ -337,6 +337,12 @@ export const settingsCategories = [
     description: 'Configure daily login rewards for users.',
   },
   {
+    title: 'Ad Monetization',
+    href: '/admin/settings/ad-monetization',
+    icon: DollarSign,
+    description: 'Configure direct ad links and automatic pop-ups.',
+  },
+  {
     title: 'Daily Click & Earn Task',
     href: '/admin/settings/click-and-earn',
     icon: MousePointerClick,

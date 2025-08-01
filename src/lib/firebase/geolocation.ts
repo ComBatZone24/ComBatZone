@@ -1,4 +1,6 @@
 
+import { headers } from 'next/headers';
+
 const API_KEY = "3d4f6837039b40c18f104b96de8da46f";
 
 export async function getGeolocationData(ip: string | null) {
@@ -8,8 +10,8 @@ export async function getGeolocationData(ip: string | null) {
   }
   
   // Prevent calling for local/private IPs
-  if (ip === '127.0.0.1' || ip.startsWith('192.168.') || ip.startsWith('10.')) {
-    console.log(`Skipping geolocation for local IP: ${ip}`);
+  if (ip === '127.0.0.1' || ip === '::1' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('172.16.')) {
+    console.log(`Skipping geolocation for local/private IP: ${ip}`);
     return null;
   }
 
@@ -41,19 +43,19 @@ export async function getGeolocationData(ip: string | null) {
   }
 }
 
+// This function can now be called safely from Server Actions
 export async function getClientIpAddress(): Promise<string | null> {
     try {
-        // We use ipify as a simple, reliable public IP address provider.
-        const response = await fetch('https://api.ipify.org?format=json', {
-            cache: 'no-store', // Ensure we always get the live IP, bypass browser cache
-        });
-        if (!response.ok) {
-            throw new Error(`ipify API request failed with status ${response.status}`);
+        const FALLBACK_IP_ADDRESS = '0.0.0.0'
+        const forwardedFor = headers().get('x-forwarded-for')
+    
+        if (forwardedFor) {
+          return forwardedFor.split(',')[0] ?? FALLBACK_IP_ADDRESS
         }
-        const data = await response.json();
-        return data.ip || null;
+    
+        return headers().get('x-real-ip') ?? FALLBACK_IP_ADDRESS
     } catch (error) {
-        console.error("Error fetching client IP address:", error);
-        return null; // Return null on failure
+        console.error("Error fetching client IP from headers:", error);
+        return null;
     }
 }

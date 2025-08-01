@@ -63,8 +63,8 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     let timeoutId: NodeJS.Timeout;
     
     const scheduleNextAd = () => {
-      const min = settings.popupMinInterval * 60 * 1000;
-      const max = settings.popupMaxInterval * 60 * 1000;
+      const min = (settings.popupMinInterval || 2) * 60 * 1000;
+      const max = (settings.popupMaxInterval || 5) * 60 * 1000;
       const randomInterval = Math.floor(Math.random() * (max - min + 1)) + min;
 
       timeoutId = setTimeout(() => {
@@ -72,7 +72,9 @@ export const AdProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       }, randomInterval);
     };
 
-    scheduleNextAd();
+    if (!isPopupVisible) {
+        scheduleNextAd();
+    }
 
     return () => clearTimeout(timeoutId);
   }, [settings, isPopupVisible]);

@@ -28,7 +28,11 @@ const generateReferralCode = (username: string) => {
 
 // --- Main Server Action ---
 export async function signupUser(data: any): Promise<{ success: boolean; error?: string; userId?: string }> {
+  let userRecord;
   try {
+    // 1. Get client IP address first. This is crucial as it depends on the request headers.
+    const clientIp = await getClientIpAddress();
+
     // 2. Validate incoming data
     const validatedData = signupSchema.parse(data);
 
@@ -41,7 +45,7 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
     }
     
     // 4. Create user in Firebase Authentication
-    const userRecord = await adminAuth.createUser({
+    userRecord = await adminAuth.createUser({
       email: validatedData.email,
       password: validatedData.password,
       displayName: validatedData.username,
@@ -49,7 +53,7 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
     });
     
     // 5. Prepare user data for Realtime Database
-    const locationData = await getGeolocationData(await getClientIpAddress());
+    const locationData = clientIp ? await getGeolocationData(clientIp) : null;
     const selectedDialCode = data.countryCode ? data.countryCode.split('-')[0] : '';
 
     const ownReferralCode = generateReferralCode(validatedData.username);
@@ -135,8 +139,8 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
     console.error("Signup Server Action Error:", error);
     
     // Cleanup failed auth user if DB write fails after auth user is created
-    if (error.uid) {
-        await adminAuth.deleteUser(error.uid).catch(e => console.error("Failed to cleanup auth user on DB error:", e));
+    if (userRecord && userRecord.uid) {
+        await adminAuth.deleteUser(userRecord.uid).catch(e => console.error("Failed to cleanup auth user on DB error:", e));
     }
 
     return { success: false, error: errorMessage };

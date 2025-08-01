@@ -1,5 +1,4 @@
 
-
 export interface User {
   id: string;
   username: string;
@@ -307,10 +306,10 @@ export interface UserNotification {
 
 export interface AdsterraSettings {
   enabled: boolean;
-  directLinks?: string[]; // Made optional and an array
+  directLinks?: string[];
   popupsEnabled?: boolean;
-  popupMinInterval: number; // in minutes
-  popupMaxInterval: number; // in minutes
+  popupMinInterval: number;
+  popupMaxInterval: number;
   buttonAdPlacements?: Record<string, boolean>;
 }
 
@@ -423,6 +422,7 @@ export interface GlobalSettings {
   mobileLoadEnabled?: boolean; // New setting for mobile load
   shopEnabled?: boolean; // New setting for the shop
   dailyUserLimit?: number;
+  admobRewardedAdUnitId?: string;
   
   // Daily Ad Task settings
   dailyAdTaskReward?: number;
