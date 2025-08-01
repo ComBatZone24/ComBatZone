@@ -126,12 +126,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <head></head>
+      <head>
+         <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8948652329924345"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body className={`${orbitron.variable} ${poppins.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         <FirebaseInitializer>
           <AuthProvider>
             <SettingsProvider>
-              <UpdateProvider> {/* Wrap AdProvider with UpdateProvider */}
+              <UpdateProvider>
                 <AdProvider>
                   <FloatingChatProvider>
                     <AppShell>

@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ArrowLeft, Loader2, Save, AlertCircle, Coins, Target, Trash2, Link as LinkIcon, PlusCircle, X, MousePointerClick, Clock, Repeat as RepeatIcon, UploadCloud } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, AlertCircle, Coins, Target, Trash2, Link as LinkIcon, PlusCircle, X, MousePointerClick, Clock, Repeat as RepeatIcon, UploadCloud, Tv } from 'lucide-react';
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
