@@ -23,7 +23,7 @@ import { countryCodes } from "@/lib/country-codes";
 import { signupUser } from "@/app/auth/actions";
 import { useToast } from '@/hooks/use-toast';
 import { database } from '@/lib/firebase/config';
-import { ref, get } from 'firebase/database';
+import { ref, get, query, orderByChild, equalTo } from 'firebase/database';
 
 
 // Form validation schema
@@ -99,15 +99,21 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         const result = await signupUser(data);
 
         if (!result.success) {
+            // Handle username taken error specifically to guide the user back to the correct step
+            if(result.error?.includes("username is already taken")) {
+                form.setError("username", { type: "manual", message: result.error });
+                setStep(1);
+            } else {
+                 setStep(1); // Go back to the first step on other errors too
+            }
             throw new Error(result.error);
         }
 
-        toast({ title: "Account Created!", description: "Welcome! You are now logged in.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
+        toast({ title: "Account Created!", description: "Welcome! Redirecting you to the main page.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
         router.push('/');
 
     } catch (error: any) {
       toast({ title: "Signup Failed", description: error.message || "An unknown error occurred.", variant: "destructive" });
-      setStep(1); 
     } finally {
       setIsLoading(false);
     }

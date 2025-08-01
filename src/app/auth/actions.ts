@@ -4,6 +4,7 @@
 import { z } from 'zod';
 import { adminDb, adminAuth } from '@/lib/firebase/admin';
 import type { User as AppUserType } from '@/types';
+import { getGeolocationData, getClientIpAddress } from '@/lib/firebase/geolocation';
 
 
 // Schema for signup data validation
@@ -14,6 +15,7 @@ const signupSchema = z.object({
   countryCode: z.string().optional(),
   phone: z.string().optional(),
   gameUid: z.string().optional(),
+  referralCode: z.string().optional(),
 });
 type SignupData = z.infer<typeof signupSchema>;
 
@@ -31,16 +33,16 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
   try {
     // 1. Validate incoming data
     const validatedData = signupSchema.parse(data);
-
-    // 2. Check if username already exists in the database
-    const usersRef = adminDb.ref('users');
-    const usernameQuery = usersRef.orderByChild('username').equalTo(validatedData.username);
-    const usernameSnapshot = await usernameQuery.once('value');
-    if (usernameSnapshot.exists()) {
-      throw new Error("Username is already taken.");
-    }
+    const lowerCaseUsername = validatedData.username.toLowerCase();
     
-    // 3. Create user in Firebase Authentication
+    // Check if username already exists in the dedicated usernames list
+    const usernameRef = adminDb.ref(`usernames/${lowerCaseUsername}`);
+    const usernameSnapshot = await usernameRef.once('value');
+    if (usernameSnapshot.exists()) {
+        throw new Error("This username is already taken. Please choose another one.");
+    }
+
+    // 2. Create user in Firebase Authentication
     userRecord = await adminAuth.createUser({
       email: validatedData.email,
       password: validatedData.password,
@@ -48,11 +50,11 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
       emailVerified: false, 
     });
     
-    // Geolocation logic has been removed as it was causing server-side errors in Median.co environment.
+    const locationData = await getGeolocationData(await getClientIpAddress());
     const selectedDialCode = data.countryCode ? data.countryCode.split('-')[0] : '';
     const ownReferralCode = generateReferralCode(validatedData.username);
 
-    // 4. Prepare user data for Realtime Database
+    // 3. Prepare user data for Realtime Database
     const newUserRecord: AppUserType = {
       id: userRecord.uid,
       username: validatedData.username,
@@ -72,13 +74,14 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
       referredByDelegate: null,
       referralBonusReceived: 0,
       totalReferralCommissionsEarned: 0,
-      location: null, // Set to null as we are no longer fetching geolocation
+      location: locationData, 
       watchAndEarnPoints: 0,
     };
     
     const updates: Record<string, any> = {};
+    const usersRef = adminDb.ref('users');
 
-    // 5. Handle Referral Logic
+    // 4. Handle Referral Logic
     if (data.referralCode?.trim()) {
         const friendCode = data.referralCode.trim().toUpperCase();
         if (friendCode !== ownReferralCode) {
@@ -86,7 +89,6 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
             const settings = settingsSnapshot.val();
             const bonusAmount = settings?.referralBonusAmount || 0;
             
-            // This is the corrected, efficient query
             const referrerQuery = usersRef.orderByChild('referralCode').equalTo(friendCode);
             const referrerSnapshot = await referrerQuery.once('value');
 
@@ -101,12 +103,9 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
                     if (settings?.shareAndEarnEnabled && bonusAmount > 0) {
                         newUserRecord.wallet += bonusAmount;
                         newUserRecord.referralBonusReceived = bonusAmount;
-
-                        const referrerWalletRef = adminDb.ref(`users/${referrerId}/wallet`);
-                        await referrerWalletRef.set((referrerProfile.wallet || 0) + bonusAmount);
-
-                        const referrerCommissionRef = adminDb.ref(`users/${referrerId}/totalReferralCommissionsEarned`);
-                        await referrerCommissionRef.set((referrerProfile.totalReferralCommissionsEarned || 0) + bonusAmount);
+                        
+                        updates[`users/${referrerId}/wallet`] = (referrerProfile.wallet || 0) + bonusAmount;
+                        updates[`users/${referrerId}/totalReferralCommissionsEarned`] = (referrerProfile.totalReferralCommissionsEarned || 0) + bonusAmount;
                     }
                     if (referrerProfile.role === 'delegate') {
                         newUserRecord.referredByDelegate = referrerId;
@@ -116,9 +115,12 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
         }
     }
 
-    updates[`/users/${userRecord.uid}`] = newUserRecord;
+    // Prepare updates for the new user and potentially the referrer
+    updates[`users/${userRecord.uid}`] = newUserRecord;
+    // Secure the unique username
+    updates[`usernames/${lowerCaseUsername}`] = userRecord.uid;
     
-    // 6. Perform the final database write
+    // Perform the database writes
     await adminDb.ref().update(updates);
 
     return { success: true, userId: userRecord.uid };
@@ -134,7 +136,6 @@ export async function signupUser(data: any): Promise<{ success: boolean; error?:
     }
     console.error("Signup Server Action Error:", error);
     
-    // Cleanup failed auth user if DB write fails after auth user is created
     if (userRecord && userRecord.uid) {
         await adminAuth.deleteUser(userRecord.uid).catch(e => console.error("Failed to cleanup auth user on DB error:", e));
     }

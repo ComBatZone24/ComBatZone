@@ -11,7 +11,7 @@
 
     "users": {
       ".indexOn": ["username", "role", "referralCode", "createdAt", "email", "gameUid", "gameName", "isOnline"],
-      ".read": "query.orderByChild === 'username' || (auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (query.orderByChild === 'referralCode' && query.equalTo != null)))",
+      ".read": "query.orderByChild === 'username' || (auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && (root.child('users').child(auth.uid).child('delegatePermissions/accessScreens/manageDelegates').val() === true || root.child('users').child(auth.uid).child('delegatePermissions/accessScreens/dashboard').val() === true)) || (query.orderByChild === 'referralCode' && query.equalTo != null)))",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
         ".write": "auth != null && (auth.uid === $uid || !data.exists())",
@@ -43,6 +43,14 @@
             ".write": "auth.uid === $uid"
         },
         ".validate": "newData.hasChildren(['username', 'email', 'createdAt', 'role'])"
+      }
+    },
+    
+    "usernames": {
+      ".read": "auth != null",
+      "$username": {
+        ".write": "!data.exists() || (data.exists() && data.val() === auth.uid)",
+        ".validate": "newData.isString()"
       }
     },
 
@@ -217,6 +225,11 @@
     "adminData": {
         ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true))",
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin')"
+    },
+
+    "shopItems": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('shop').val() === true))"
     },
 
     "purchaseRequests": {
