@@ -22,7 +22,7 @@ import { countryCodes } from "@/lib/country-codes";
 // Firebase
 import { auth, database } from '@/lib/firebase/config';
 import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
-import { ref, set, get, query, orderByChild, equalTo, update, serverTimestamp, push, runTransaction } from 'firebase/database';
+import { ref, set, get, query, orderByChild, equalTo, update, serverTimestamp, push } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import type { User as AppUserType, WalletTransaction } from '@/types';
 
@@ -118,41 +118,13 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
 
       const selectedDialCode = data.countryCode.split('-')[0];
       const ownReferralCode = generateReferralCode(data.username);
-      
-      let bonusToNewUser = 0;
-      let referrerId: string | null = null;
-      let referrerUsername: string | null = null;
-      
-      const friendCode = data.referralCode?.trim() ? data.referralCode.trim().toUpperCase() : null;
-
-      if (friendCode && friendCode !== ownReferralCode) {
-        const settingsRef = ref(database, 'globalSettings');
-        const settingsSnapshot = await get(settingsRef);
-        const settings = settingsSnapshot.val();
-        const bonusAmount = settings?.referralBonusAmount || 0;
-        
-        if (settings?.shareAndEarnEnabled && bonusAmount > 0) {
-            const referrerQuery = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(friendCode));
-            const referrerSnapshot = await get(referrerQuery);
-
-            if (referrerSnapshot.exists()) {
-                referrerSnapshot.forEach(child => {
-                    referrerId = child.key!;
-                    referrerUsername = child.val().username;
-                });
-                if (referrerId && referrerId !== firebaseUser.uid) {
-                    bonusToNewUser = bonusAmount;
-                }
-            }
-        }
-      }
 
       const newUserRecord: AppUserType = {
         id: firebaseUser.uid,
         username: data.username,
         email: data.email,
         phone: `${selectedDialCode}${data.phone}`,
-        wallet: bonusToNewUser, // Start with the bonus amount
+        wallet: 0, 
         tokenWallet: 0,
         role: 'user',
         isActive: true,
@@ -162,40 +134,47 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         gameUid: data.gameUid,
         gameName: data.username, 
         referralCode: ownReferralCode,
-        appliedReferralCode: friendCode,
-        referralBonusReceived: bonusToNewUser,
+        appliedReferralCode: data.referralCode?.trim().toUpperCase() || null,
+        referralBonusReceived: 0,
         totalReferralCommissionsEarned: 0,
         watchAndEarnPoints: 0,
         location: null,
       };
-      
+
       const usernameSnapshot = await get(ref(database, `usernames/${data.username.toLowerCase()}`));
       if (usernameSnapshot.exists()) {
           throw new Error("Username already taken");
       }
       
-      // All writes are now safe and don't violate security rules
-      const updates: Record<string, any> = {};
-      updates[`/users/${firebaseUser.uid}`] = newUserRecord;
-      updates[`/usernames/${data.username.toLowerCase()}`] = firebaseUser.uid;
+      // Save the new user's profile first
+      await set(ref(database, `/users/${firebaseUser.uid}`), newUserRecord);
+      await set(ref(database, `/usernames/${data.username.toLowerCase()}`), firebaseUser.uid);
 
-      // If a referrer was found, create a pending payout for them.
-      if (referrerId && bonusToNewUser > 0) {
-          const payoutKey = push(ref(database, 'pending_payouts')).key;
-          if(payoutKey) {
-            updates[`/pending_payouts/${payoutKey}`] = {
-                referrerId: referrerId,
-                referrerUsername: referrerUsername,
-                newUserId: firebaseUser.uid,
-                newUsername: newUserRecord.username,
-                amount: bonusToNewUser,
-                reason: "Referral Commission",
-                createdAt: serverTimestamp()
-            };
+      // --- NEW: API-based Referral Payout ---
+      // After successfully creating the user, call the API to handle the referral bonus securely.
+      if (data.referralCode?.trim()) {
+        try {
+          const response = await fetch('/api/referral-signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              newUserId: firebaseUser.uid,
+              referralCode: data.referralCode.trim().toUpperCase(),
+            }),
+          });
+          const result = await response.json();
+          if (response.ok) {
+            toast({ title: "Referral Applied!", description: result.message, className: "bg-blue-500/20" });
+          } else {
+            // If the API call fails, the user is still created, but the bonus isn't applied.
+            // This is better than the whole signup failing. We just log a warning toast.
+            toast({ title: "Referral Warning", description: result.message || "Could not apply referral bonus.", variant: "destructive" });
           }
+        } catch (apiError) {
+          console.error("API call to /api/referral-signup failed:", apiError);
+          toast({ title: "Referral Error", description: "Failed to communicate with referral server.", variant: "destructive" });
+        }
       }
-      
-      await update(ref(database), updates);
 
       toast({ title: "Account Created!", description: "Welcome! You are now logged in.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
       router.push('/');
@@ -206,7 +185,7 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
       if (error.code === 'auth/email-already-in-use') errorMessage = "This email is already registered.";
       else if (error.message === "Username already taken") errorMessage = "This username is already taken. Please choose another one.";
       else if (String(error.message).includes("PERMISSION_DENIED")) {
-        errorMessage = "Permission denied. This might be a temporary issue. Please try again.";
+        errorMessage = "Permission denied. Please check database rules or contact support.";
       } else {
         console.error("Signup failed with error:", error);
       }

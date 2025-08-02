@@ -1,4 +1,5 @@
 
+
 export interface User {
   id: string;
   username: string;
@@ -21,6 +22,7 @@ export interface User {
   appliedReferralCode?: string | null;
   referredByDelegate?: string | null; // UID of the referring delegate
   referralBonusReceived?: number;
+  referrerBonusPaid?: boolean; // New flag to track if the referrer has been paid for this user's signup
   totalReferralCommissionsEarned?: number;
   watchAndEarnPoints?: number;
   youtubeSubscriptionAwarded?: boolean;

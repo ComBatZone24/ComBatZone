@@ -7,8 +7,8 @@ import type { User, WalletTransaction, GlobalSettings } from '@/types';
 import { AlertTriangle, LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { database, auth } from '@/lib/firebase/config';
-import { ref, onValue, get, update, query, orderByChild, equalTo, runTransaction, push } from 'firebase/database';
+import { database } from '@/lib/firebase/config';
+import { ref, onValue, get, update, query, orderByChild, equalTo, runTransaction, push, serverTimestamp, off } from 'firebase/database';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import GlassCard from '@/components/core/glass-card';
@@ -26,18 +26,6 @@ export default function WalletPage() {
   const [globalSettings, setGlobalSettings] = useState<Partial<GlobalSettings>>({});
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
-  const applyReferralBonusIfNeeded = useCallback(async () => {
-    // This function is now deprecated as the bonus is awarded at signup.
-    // Kept here as a placeholder to avoid breaking old references if any.
-    // The core logic is now in `signup-form.tsx`.
-  }, []);
-
-
-  useEffect(() => {
-    applyReferralBonusIfNeeded();
-  }, [applyReferralBonusIfNeeded]);
-
 
   useEffect(() => {
     if (!appUser) {
