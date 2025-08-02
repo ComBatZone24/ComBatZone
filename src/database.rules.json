@@ -14,7 +14,7 @@
       ".read": "query.orderByChild === 'username' || (auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && (root.child('users').child(auth.uid).child('delegatePermissions/accessScreens/manageDelegates').val() === true || root.child('users').child(auth.uid).child('delegatePermissions/accessScreens/dashboard').val() === true)) || (query.orderByChild === 'referralCode' && query.equalTo != null)))",
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
-        ".write": "auth != null && (auth.uid === $uid || !data.exists())",
+        ".write": "auth != null && (auth.uid === $uid || (!data.exists() && newData.exists()))",
         
         "email": { ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'" },
         "phone": { ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'" },
@@ -258,5 +258,3 @@
     }
   }
 }
-
-    

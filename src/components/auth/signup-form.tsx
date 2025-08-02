@@ -118,13 +118,41 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
 
       const selectedDialCode = data.countryCode.split('-')[0];
       const ownReferralCode = generateReferralCode(data.username);
+      
+      let bonusToNewUser = 0;
+      let referrerId: string | null = null;
+      let referrerUsername: string | null = null;
+      
+      const friendCode = data.referralCode?.trim() ? data.referralCode.trim().toUpperCase() : null;
+
+      if (friendCode && friendCode !== ownReferralCode) {
+        const settingsRef = ref(database, 'globalSettings');
+        const settingsSnapshot = await get(settingsRef);
+        const settings = settingsSnapshot.val();
+        const bonusAmount = settings?.referralBonusAmount || 0;
+        
+        if (settings?.shareAndEarnEnabled && bonusAmount > 0) {
+            const referrerQuery = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(friendCode));
+            const referrerSnapshot = await get(referrerQuery);
+
+            if (referrerSnapshot.exists()) {
+                referrerSnapshot.forEach(child => {
+                    referrerId = child.key!;
+                    referrerUsername = child.val().username;
+                });
+                if (referrerId && referrerId !== firebaseUser.uid) {
+                    bonusToNewUser = bonusAmount;
+                }
+            }
+        }
+      }
 
       const newUserRecord: AppUserType = {
         id: firebaseUser.uid,
         username: data.username,
         email: data.email,
         phone: `${selectedDialCode}${data.phone}`,
-        wallet: 0, // Wallet starts at 0, bonus is added below if applicable
+        wallet: bonusToNewUser, // Start with the bonus amount
         tokenWallet: 0,
         role: 'user',
         isActive: true,
@@ -134,50 +162,38 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         gameUid: data.gameUid,
         gameName: data.username, 
         referralCode: ownReferralCode,
-        appliedReferralCode: data.referralCode?.trim() ? data.referralCode.trim().toUpperCase() : null,
-        referralBonusReceived: 0,
+        appliedReferralCode: friendCode,
+        referralBonusReceived: bonusToNewUser,
         totalReferralCommissionsEarned: 0,
         watchAndEarnPoints: 0,
         location: null,
       };
       
-      // Security check: Make sure username is still unique before final write.
       const usernameSnapshot = await get(ref(database, `usernames/${data.username.toLowerCase()}`));
       if (usernameSnapshot.exists()) {
           throw new Error("Username already taken");
       }
-
-      // Check for referral bonus
-      if (data.referralCode?.trim()) {
-        const friendCode = data.referralCode.trim().toUpperCase();
-        if (friendCode !== ownReferralCode) {
-            const settingsRef = ref(database, 'globalSettings');
-            const settingsSnapshot = await get(settingsRef);
-            const settings = settingsSnapshot.val();
-            const bonusAmount = settings?.referralBonusAmount || 0;
-            
-            if (settings?.shareAndEarnEnabled && bonusAmount > 0) {
-                const referrerQuery = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(friendCode));
-                const referrerSnapshot = await get(referrerQuery);
-
-                if (referrerSnapshot.exists()) {
-                    let referrerId = '';
-                    referrerSnapshot.forEach(child => { referrerId = child.key!; });
-
-                    if (referrerId && referrerId !== firebaseUser.uid) {
-                        // Directly add bonus to new user's wallet. This is allowed by rules.
-                        newUserRecord.wallet = bonusAmount;
-                        newUserRecord.referralBonusReceived = bonusAmount;
-                    }
-                }
-            }
-        }
-      }
       
-      // Write new user data and username in one secure transaction
+      // All writes are now safe and don't violate security rules
       const updates: Record<string, any> = {};
       updates[`/users/${firebaseUser.uid}`] = newUserRecord;
       updates[`/usernames/${data.username.toLowerCase()}`] = firebaseUser.uid;
+
+      // If a referrer was found, create a pending payout for them.
+      if (referrerId && bonusToNewUser > 0) {
+          const payoutKey = push(ref(database, 'pending_payouts')).key;
+          if(payoutKey) {
+            updates[`/pending_payouts/${payoutKey}`] = {
+                referrerId: referrerId,
+                referrerUsername: referrerUsername,
+                newUserId: firebaseUser.uid,
+                newUsername: newUserRecord.username,
+                amount: bonusToNewUser,
+                reason: "Referral Commission",
+                createdAt: serverTimestamp()
+            };
+          }
+      }
       
       await update(ref(database), updates);
 
@@ -190,7 +206,7 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
       if (error.code === 'auth/email-already-in-use') errorMessage = "This email is already registered.";
       else if (error.message === "Username already taken") errorMessage = "This username is already taken. Please choose another one.";
       else if (String(error.message).includes("PERMISSION_DENIED")) {
-        errorMessage = "Permission denied. Please check database rules or contact support.";
+        errorMessage = "Permission denied. This might be a temporary issue. Please try again.";
       } else {
         console.error("Signup failed with error:", error);
       }
