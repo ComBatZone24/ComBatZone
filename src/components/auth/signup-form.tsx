@@ -124,7 +124,7 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         username: data.username,
         email: data.email,
         phone: `${selectedDialCode}${data.phone}`,
-        wallet: 0,
+        wallet: 0, // Wallet starts at 0, bonus is added below if applicable
         tokenWallet: 0,
         role: 'user',
         isActive: true,
@@ -141,6 +141,7 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         location: null,
       };
       
+      // Security check: Make sure username is still unique before final write.
       const usernameSnapshot = await get(ref(database, `usernames/${data.username.toLowerCase()}`));
       if (usernameSnapshot.exists()) {
           throw new Error("Username already taken");
@@ -160,18 +161,25 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
                 const referrerSnapshot = await get(referrerQuery);
 
                 if (referrerSnapshot.exists()) {
-                    newUserRecord.wallet = bonusAmount;
-                    newUserRecord.referralBonusReceived = bonusAmount;
-                    // Note: We don't credit the referrer here to avoid permission issues.
-                    // This is now handled on the wallet page or via an admin process.
+                    let referrerId = '';
+                    referrerSnapshot.forEach(child => { referrerId = child.key!; });
+
+                    if (referrerId && referrerId !== firebaseUser.uid) {
+                        // Directly add bonus to new user's wallet. This is allowed by rules.
+                        newUserRecord.wallet = bonusAmount;
+                        newUserRecord.referralBonusReceived = bonusAmount;
+                    }
                 }
             }
         }
       }
       
-      // Write new user data in one go
-      await set(ref(database, `/users/${firebaseUser.uid}`), newUserRecord);
-      await set(ref(database, `/usernames/${data.username.toLowerCase()}`), firebaseUser.uid);
+      // Write new user data and username in one secure transaction
+      const updates: Record<string, any> = {};
+      updates[`/users/${firebaseUser.uid}`] = newUserRecord;
+      updates[`/usernames/${data.username.toLowerCase()}`] = firebaseUser.uid;
+      
+      await update(ref(database), updates);
 
       toast({ title: "Account Created!", description: "Welcome! You are now logged in.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
       router.push('/');
