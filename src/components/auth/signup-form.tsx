@@ -22,9 +22,9 @@ import { countryCodes } from "@/lib/country-codes";
 // Firebase
 import { auth, database } from '@/lib/firebase/config';
 import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth';
-import { ref, set, get, query, orderByChild, equalTo, update, serverTimestamp, push } from 'firebase/database';
+import { ref, set, get, query, orderByChild, equalTo } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
-import type { User as AppUserType, WalletTransaction } from '@/types';
+import type { User as AppUserType } from '@/types';
 
 // Form validation schema
 const signupSchema = z.object({
@@ -146,12 +146,9 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
           throw new Error("Username already taken");
       }
       
-      // Save the new user's profile first
       await set(ref(database, `/users/${firebaseUser.uid}`), newUserRecord);
       await set(ref(database, `/usernames/${data.username.toLowerCase()}`), firebaseUser.uid);
 
-      // --- NEW: API-based Referral Payout ---
-      // After successfully creating the user, call the API to handle the referral bonus securely.
       if (data.referralCode?.trim()) {
         try {
           const response = await fetch('/api/referral-signup', {
@@ -164,15 +161,13 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
           });
           const result = await response.json();
           if (response.ok) {
-            toast({ title: "Referral Applied!", description: result.message, className: "bg-blue-500/20" });
+            toast({ title: "Referral Bonus Applied!", description: result.message, className: "bg-blue-500/20" });
           } else {
-            // If the API call fails, the user is still created, but the bonus isn't applied.
-            // This is better than the whole signup failing. We just log a warning toast.
-            toast({ title: "Referral Warning", description: result.message || "Could not apply referral bonus.", variant: "destructive" });
+            toast({ title: "Referral Bonus Warning", description: result.message || "Could not apply referral bonus.", variant: "destructive" });
           }
         } catch (apiError) {
           console.error("API call to /api/referral-signup failed:", apiError);
-          toast({ title: "Referral Error", description: "Failed to communicate with referral server.", variant: "destructive" });
+          toast({ title: "Referral System Error", description: "Could not contact referral server. Bonus will be applied later.", variant: "destructive" });
         }
       }
 

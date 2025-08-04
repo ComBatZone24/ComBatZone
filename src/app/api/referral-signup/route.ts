@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
 
         const bonusAmount = settings.referralBonusAmount || 0;
         if (bonusAmount <= 0) {
+            // No bonus to give, so we can just confirm the process is done.
             return NextResponse.json({ message: 'Referral bonus is not configured.' }, { status: 200 });
         }
 
@@ -53,33 +54,31 @@ export async function POST(request: NextRequest) {
         // 3. Prepare database updates in a single transaction-like object
         const updates: Record<string, any> = {};
         const nowISO = new Date().toISOString();
+        
+        const newUserSnapshot = await adminDb.ref(`users/${newUserId}`).once('value');
+        const newUserData = newUserSnapshot.val();
+        const newUsername = newUserData?.username || 'a new user';
 
-        // Update New User's wallet and details
-        updates[`/users/${newUserId}/wallet`] = bonusAmount;
+        // --- Prepare Updates for the New User (The one who signed up) ---
+        updates[`/users/${newUserId}/wallet`] = (newUserData.wallet || 0) + bonusAmount;
         updates[`/users/${newUserId}/referralBonusReceived`] = bonusAmount;
-        updates[`/users/${newUserId}/appliedReferralCode`] = referralCode; // Ensure this is set
+        updates[`/users/${newUserId}/appliedReferralCode`] = referralCode;
         updates[`/users/${newUserId}/referredByDelegate`] = referrerData.role === 'delegate' ? referrerId : null;
 
-
-        // Update Referrer's wallet and details
-        updates[`/users/${referrerId}/wallet`] = (referrerData.wallet || 0) + bonusAmount;
-        updates[`/users/${referrerId}/totalReferralCommissionsEarned`] = (referrerData.totalReferralCommissionsEarned || 0) + bonusAmount;
-
-        // Log transaction for the New User
         const newUserTxKey = adminDb.ref(`walletTransactions/${newUserId}`).push().key;
         updates[`/walletTransactions/${newUserId}/${newUserTxKey}`] = {
             type: 'referral_bonus_received',
             amount: bonusAmount,
             status: 'completed',
             date: nowISO,
-            description: `Signup bonus for using code ${referralCode} from ${referrerData.username}`
+            description: `Signup bonus for using code from ${referrerData.username}`
         } as Omit<WalletTransaction, 'id'>;
 
-        // Log transaction for the Referrer
-        const referrerTxKey = adminDb.ref(`walletTransactions/${referrerId}`).push().key;
-        const newUserSnapshot = await adminDb.ref(`users/${newUserId}`).once('value');
-        const newUsername = newUserSnapshot.val()?.username || 'a new user';
+        // --- Prepare Updates for the Referrer (The one who shared the code) ---
+        updates[`/users/${referrerId}/wallet`] = (referrerData.wallet || 0) + bonusAmount;
+        updates[`/users/${referrerId}/totalReferralCommissionsEarned`] = (referrerData.totalReferralCommissionsEarned || 0) + bonusAmount;
 
+        const referrerTxKey = adminDb.ref(`walletTransactions/${referrerId}`).push().key;
         updates[`/walletTransactions/${referrerId}/${referrerTxKey}`] = {
             type: 'referral_commission_earned',
             amount: bonusAmount,
