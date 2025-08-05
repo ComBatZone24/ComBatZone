@@ -1,20 +1,26 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, XCircle, Hourglass, RefreshCcw, AlertCircle, Trash2 } from 'lucide-react';
-import type { WithdrawRequest, WalletTransaction, User as AppUserType } from '@/types';
+import { CheckCircle2, XCircle, Hourglass, RefreshCcw, AlertCircle, Trash2, UserCircle } from 'lucide-react';
+import type { WithdrawRequest, WalletTransaction, User as AppUserType, GlobalSettings } from '@/types';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, off, update, runTransaction, push, remove, get } from 'firebase/database';
+import { ref, onValue, off, update, runTransaction, push, remove, get, query, orderByChild, equalTo } from 'firebase/database';
 import PageTitle from '@/components/core/page-title';
 
 
@@ -26,6 +32,55 @@ export default function AdminWithdrawalsPage() {
 
   const [isDeleting, setIsDeleting] = useState<Record<string, boolean>>({});
   const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [adminFeeWalletUid, setAdminFeeWalletUid] = useState<string | null>(null);
+
+  const [feeRecipients, setFeeRecipients] = useState<Record<string, { name: string; id: string } | null>>({});
+  const [isLoadingRecipients, setIsLoadingRecipients] = useState(false);
+
+  // Function to fetch fee recipient for a single request
+  const fetchFeeRecipient = useCallback(async (request: WithdrawRequest): Promise<{ name: string; id: string } | null> => {
+    try {
+        const userRef = ref(database, `users/${request.uid}`);
+        const userSnapshot = await get(userRef);
+        if (!userSnapshot.exists()) return null;
+
+        const userData = userSnapshot.val() as AppUserType;
+        const appliedCode = userData.appliedReferralCode;
+
+        if (appliedCode) {
+            const delegatesRef = query(ref(database, 'users'), orderByChild('referralCode'), equalTo(appliedCode));
+            const delegateSnapshot = await get(delegatesRef);
+            if (delegateSnapshot.exists()) {
+                const delegateData = delegateSnapshot.val();
+                const delegateId = Object.keys(delegateData)[0];
+                if (delegateData[delegateId]?.role === 'delegate') {
+                    return { id: delegateId, name: delegateData[delegateId].username || 'Unnamed Delegate' };
+                }
+            }
+        }
+        return null; // No delegate found
+    } catch (error) {
+        console.error(`Failed to fetch recipient for request ${request.id}`, error);
+        return null;
+    }
+  }, []);
+
+  // Effect to fetch all recipients when withdrawals data changes
+  useEffect(() => {
+    if (withdrawals.length > 0) {
+      setIsLoadingRecipients(true);
+      const fetchAll = async () => {
+        const recipientsData: Record<string, { name: string; id: string } | null> = {};
+        for (const req of withdrawals) {
+          recipientsData[req.id] = await fetchFeeRecipient(req);
+        }
+        setFeeRecipients(recipientsData);
+        setIsLoadingRecipients(false);
+      };
+      fetchAll();
+    }
+  }, [withdrawals, fetchFeeRecipient]);
+
 
   useEffect(() => {
     if (!database) {
@@ -57,9 +112,15 @@ export default function AdminWithdrawalsPage() {
       setIsLoading(false);
     });
 
+    const settingsRef = ref(database, 'globalSettings/tokenSettings/adminFeeWalletUid');
+    const settingsListener = onValue(settingsRef, (snapshot) => {
+        setAdminFeeWalletUid(snapshot.val() || null);
+    });
+
     return () => {
       if (database) { 
         off(withdrawalsRef, 'value', listener);
+        off(settingsRef, 'value', settingsListener);
       }
     };
   }, [toast]);
@@ -91,37 +152,48 @@ export default function AdminWithdrawalsPage() {
       updates[`withdrawRequests/${requestId}/processedDate`] = new Date().toISOString();
 
       if (newAdminDecision === 'approved') {
-        updates[`withdrawRequests/${requestId}/status`] = 'completed'; // Mark request as completed
-        updates[`walletTransactions/${userId}/${walletTransactionId}/status`] = 'completed'; // Mark original hold transaction as completed
-        updates[`walletTransactions/${userId}/${walletTransactionId}/description`] = `Withdrawal to ${requestToUpdate.method || 'account'} completed.`; // Update description
+        updates[`withdrawRequests/${requestId}/status`] = 'completed';
+        updates[`walletTransactions/${userId}/${walletTransactionId}/status`] = 'completed';
+        updates[`walletTransactions/${userId}/${walletTransactionId}/description`] = `Withdrawal to ${requestToUpdate.method || 'account'} completed.`;
 
-        const userRef = ref(database, `users/${userId}`);
-        const userSnapshot = await get(userRef);
-        if (userSnapshot.exists()) {
-            const userData = userSnapshot.val() as AppUserType;
-            const delegateId = userData.referredByDelegate;
-            if (delegateId) {
-                const delegateFee = requestToUpdate.amount * 0.05; // 5% fee for delegate
-                const delegateWalletRef = ref(database, `users/${delegateId}/wallet`);
-                await runTransaction(delegateWalletRef, (currentBalance) => (currentBalance || 0) + delegateFee);
-                
-                const commissionTx: Omit<WalletTransaction, 'id'> = {
-                    type: 'referral_commission_earned', amount: delegateFee, status: 'completed',
-                    date: new Date().toISOString(),
-                    description: `5% fee from ${userData.username}'s withdrawal of Rs ${requestToUpdate.amount.toFixed(2)}`,
-                };
-                await push(ref(database, `walletTransactions/${delegateId}`), commissionTx);
-            }
+        // Use pre-fetched recipient data
+        const delegate = feeRecipients[requestId];
+        const feeAmount = requestToUpdate.amount * 0.05;
+
+        if (delegate && delegate.id) {
+            // Logic for referred user: give commission to delegate
+            const delegateWalletRef = ref(database, `users/${delegate.id}/wallet`);
+            await runTransaction(delegateWalletRef, (currentBalance) => (currentBalance || 0) + feeAmount);
+            
+            const commissionTx: Omit<WalletTransaction, 'id'> = {
+                type: 'referral_commission_earned', amount: feeAmount, status: 'completed',
+                date: new Date().toISOString(),
+                description: `5% fee from ${requestToUpdate.username}'s withdrawal of Rs ${requestToUpdate.amount.toFixed(2)}`,
+            };
+            await push(ref(database, `walletTransactions/${delegate.id}`), commissionTx);
+        } else if (adminFeeWalletUid) {
+            // Logic for non-referred user: give fee to admin
+            const adminWalletRef = ref(database, `users/${adminFeeWalletUid}/wallet`);
+            await runTransaction(adminWalletRef, (currentBalance) => (currentBalance || 0) + feeAmount);
+            
+            const adminFeeTx: Omit<WalletTransaction, 'id'> = {
+                type: 'fee_collected', amount: feeAmount, status: 'completed',
+                date: new Date().toISOString(),
+                description: `5% fee from ${requestToUpdate.username}'s withdrawal of Rs ${requestToUpdate.amount.toFixed(2)}`,
+            };
+            await push(ref(database, `walletTransactions/${adminFeeWalletUid}`), adminFeeTx);
+        } else {
+             console.warn("Withdrawal fee could not be processed: No delegate found and admin fee wallet is not set.");
         }
+
 
         toast({ title: "Request Approved", description: `Withdrawal for Rs ${amount.toFixed(2)} finalized.`, variant: "default", className: "bg-green-500/20 text-green-300 border-green-500/30" });
 
       } else if (newAdminDecision === 'rejected') {
-        updates[`withdrawRequests/${requestId}/status`] = 'rejected'; // Mark request as rejected
-        updates[`walletTransactions/${userId}/${walletTransactionId}/status`] = 'rejected'; // Mark original hold transaction as rejected
-        updates[`walletTransactions/${userId}/${walletTransactionId}/description`] = 'Withdrawal request rejected.'; // Update description
+        updates[`withdrawRequests/${requestId}/status`] = 'rejected';
+        updates[`walletTransactions/${userId}/${walletTransactionId}/status`] = 'rejected';
+        updates[`walletTransactions/${userId}/${walletTransactionId}/description`] = 'Withdrawal request rejected.';
 
-        // Refund the amount to user's wallet
         const userWalletRef = ref(database, `users/${userId}/wallet`);
         const refundResult = await runTransaction(userWalletRef, (currentBalance) => {
           return (Number(currentBalance) || 0) + amount;
@@ -131,10 +203,9 @@ export default function AdminWithdrawalsPage() {
           throw new Error("Failed to refund amount to user's wallet. Please check user's balance manually.");
         }
         
-        // Log the refund transaction
         const refundTransactionData: Omit<WalletTransaction, 'id'> = {
           type: 'refund',
-          amount: amount, // Positive amount for refund
+          amount: amount, 
           status: 'completed',
           date: new Date().toISOString(),
           description: `Withdrawal request (ID: ${requestId.substring(0,6)}...) rejected - amount refunded.`,
@@ -194,7 +265,6 @@ export default function AdminWithdrawalsPage() {
       return;
     }
 
-    // Optional: Add a confirmation dialog here before deleting
     if (!confirm("Are you sure you want to delete this withdrawal request? This action cannot be undone.")) {
       return;
     }
@@ -243,8 +313,7 @@ export default function AdminWithdrawalsPage() {
         <AlertCircle className="h-5 w-5 !text-primary" />
         <AlertTitle className="!text-primary">Important Process Note</AlertTitle>
         <AlertDescription className="!text-primary/80">
-          When a user requests a withdrawal, the amount is put on hold (deducted) from their wallet.
-          Approving a request finalizes this and pays any delegate commission. Rejecting a request will refund the amount to the user's wallet.
+          Approving a request finalizes payment. If the user was referred by a delegate, 5% of the withdrawal amount is sent to the delegate. If not referred, 5% is sent to the admin's fee wallet. Rejecting a request refunds the held amount to the user's wallet.
         </AlertDescription>
       </Alert>
 
@@ -254,14 +323,16 @@ export default function AdminWithdrawalsPage() {
         </div>
         <div className="relative flex-1">
           <ScrollArea className="absolute inset-0">
+            <TooltipProvider>
             <Table className="min-w-[900px]">
               <TableHeader>
                 <TableRow className="border-b-border/50 sticky top-0 bg-card/80 backdrop-blur-sm z-10">
-                  <TableHead>User ID</TableHead>
-                  <TableHead>Username</TableHead>
+                  <TableHead>User</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Account No.</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Fee (5%)</TableHead>
+                  <TableHead className="text-right">Net Payout</TableHead>
                   <TableHead className="text-center">Requested</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-center">Actions</TableHead>
@@ -270,18 +341,48 @@ export default function AdminWithdrawalsPage() {
               <TableBody>
                 {withdrawals.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-10">
                       No withdrawal requests found.
                     </TableCell>
                   </TableRow>
                 )}
-                {withdrawals.map((req) => (
+                {withdrawals.map((req) => {
+                  const recipient = feeRecipients[req.id];
+                  return (
                   <TableRow key={req.id} className="border-b-border/20 hover:bg-muted/20">
-                    <TableCell className="text-xs font-mono" title={req.uid}>{req.uid.substring(0,10)}...</TableCell>
-                    <TableCell>{req.username || 'N/A'}</TableCell>
+                    <TableCell>
+                      <div>
+                        <p>{req.username || 'N/A'}</p>
+                        <p className="text-xs font-mono text-muted-foreground" title={req.uid}>{req.uid.substring(0,10)}...</p>
+                      </div>
+                    </TableCell>
                     <TableCell>{req.method}</TableCell>
                     <TableCell>{req.accountNumber}</TableCell>
                     <TableCell className="text-right font-semibold"><RupeeIcon className="inline h-3.5 w-auto mr-0.5" /> {req.amount.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-red-400 font-mono">
+                      <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help border-b border-dashed border-red-400/50">
+                              <RupeeIcon className="inline h-3 w-auto mr-0.5" /> 
+                              {(req.amount * 0.05).toFixed(2)}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent className="glass-card">
+                            {isLoadingRecipients ? (
+                              <p>Loading recipient...</p>
+                            ) : recipient ? (
+                              <div>
+                                <p className="font-semibold">Fee to Delegate:</p>
+                                <p className="text-xs text-muted-foreground">{recipient.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{recipient.id}</p>
+                              </div>
+                            ) : (
+                              <p>Fee to Admin Wallet</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-green-400"><RupeeIcon className="inline h-3.5 w-auto mr-0.5" /> {(req.amount * 0.95).toFixed(2)}</TableCell>
                     <TableCell className="text-center text-xs">{new Date(req.requestDate).toLocaleDateString()}</TableCell>
                     <TableCell className="text-center">
                       <Badge
@@ -317,9 +418,11 @@ export default function AdminWithdrawalsPage() {
                       )}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
+            </TooltipProvider>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </div>
@@ -327,3 +430,4 @@ export default function AdminWithdrawalsPage() {
     </div>
   );
 }
+

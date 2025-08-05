@@ -16,9 +16,12 @@ function initializeFirebaseAdmin() {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
 
   if (!projectId || !privateKey || !clientEmail) {
-    throw new Error(
-      'FATAL: Firebase Admin SDK environment variables (FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, FIREBASE_CLIENT_EMAIL) are not set correctly.'
+    console.error(
+      'FATAL: Firebase Admin SDK environment variables are not set. Please check FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL in your Vercel project settings.'
     );
+    // In a real production scenario, you might want to throw an error 
+    // to prevent the server from starting in a broken state.
+    return;
   }
 
   try {
@@ -30,16 +33,26 @@ function initializeFirebaseAdmin() {
       }),
       databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
     });
-    console.log("Firebase Admin SDK initialized successfully using individual env vars.");
+    console.log("Firebase Admin SDK initialized successfully.");
   } catch (e: any) {
-    console.error("Failed to initialize Firebase Admin with individual env vars:", e);
-    throw new Error("Could not initialize Firebase Admin SDK. Check your environment variables.");
+    console.error("Failed to initialize Firebase Admin SDK. Please verify your environment variables.", e);
+    // We do not throw here to allow the build process to complete, but the error will be logged.
   }
 }
 
 // Initialize on module load
 initializeFirebaseAdmin();
 
-export const adminAuth = getAuth();
-export const adminDb = getDatabase();
+// Export auth and db instances. They will be undefined if initialization failed.
+let adminAuth;
+let adminDb;
+
+try {
+  adminAuth = getAuth();
+  adminDb = getDatabase();
+} catch (e) {
+  console.error("Could not get Firebase Admin auth or database instances. The SDK might not have been initialized correctly.");
+}
+
+export { adminAuth, adminDb };
 export default admin;

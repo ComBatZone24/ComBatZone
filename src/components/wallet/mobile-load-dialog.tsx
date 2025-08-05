@@ -20,6 +20,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import RupeeIcon from '@/components/core/rupee-icon';
+import { ScrollArea } from '../ui/scroll-area';
 
 const MIN_LOAD_AMOUNT = 50;
 const PAKISTANI_NETWORKS = ["Jazz", "Telenor", "Zong", "Ufone", "Other"];
@@ -147,46 +148,48 @@ export default function MobileLoadDialog({ firebaseUser, userProfile, onOpenChan
           Use your wallet balance to request an Easyload.
         </DialogDescription>
       </DialogHeader>
-      <form onSubmit={handleSubmit} className="space-y-4 py-4">
-        <div>
-          <Label htmlFor="phone-number">Phone Number</Label>
-          <Input id="phone-number" type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="03xxxxxxxxx" className="bg-input/50"/>
-        </div>
-        <div>
-          <Label htmlFor="network-select">Network</Label>
-          <Select value={network} onValueChange={setNetwork}>
-            <SelectTrigger id="network-select" className="bg-input/50">
-              <SelectValue placeholder="Select Network" />
-            </SelectTrigger>
-            <SelectContent className="glass-card">
-              {PAKISTANI_NETWORKS.map(net => <SelectItem key={net} value={net}>{net}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div>
-          <Label htmlFor="load-amount">Amount (PKR)</Label>
-          <Input id="load-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`e.g., ${MIN_LOAD_AMOUNT}`} className="bg-input/50" min={MIN_LOAD_AMOUNT}/>
-          <p className="text-xs text-muted-foreground mt-1">Available Balance: <RupeeIcon className="inline h-3.5"/> {userProfile.wallet.toFixed(2)}</p>
-        </div>
+      <ScrollArea className="max-h-[70vh]">
+        <form onSubmit={handleSubmit} className="space-y-4 py-4 pr-4">
+          <div>
+            <Label htmlFor="phone-number">Phone Number</Label>
+            <Input id="phone-number" type="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="03xxxxxxxxx" className="bg-input/50"/>
+          </div>
+          <div>
+            <Label htmlFor="network-select">Network</Label>
+            <Select value={network} onValueChange={setNetwork}>
+              <SelectTrigger id="network-select" className="bg-input/50">
+                <SelectValue placeholder="Select Network" />
+              </SelectTrigger>
+              <SelectContent className="glass-card">
+                {PAKISTANI_NETWORKS.map(net => <SelectItem key={net} value={net}>{net}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="load-amount">Amount (PKR)</Label>
+            <Input id="load-amount" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={`e.g., ${MIN_LOAD_AMOUNT}`} className="bg-input/50" min={MIN_LOAD_AMOUNT}/>
+            <p className="text-xs text-muted-foreground mt-1">Available Balance: <RupeeIcon className="inline h-3.5"/> {userProfile.wallet.toFixed(2)}</p>
+          </div>
 
-        {localError && (
-          <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{localError}</AlertDescription></Alert>
-        )}
+          {localError && (
+            <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertDescription>{localError}</AlertDescription></Alert>
+          )}
 
-        <Alert variant="default" className="bg-primary/10 border-primary/30">
-          <Info className="h-4 w-4 !text-primary" /><AlertDescription className="!text-primary/80 text-xs">Requests are processed by admin. Ensure details are correct. Funds will be put on hold.</AlertDescription>
-        </Alert>
-    
-        <DialogFooter className="pt-4 sm:justify-between">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-muted-foreground/50 text-muted-foreground" disabled={isSubmitting}>
-            <X className="mr-2 h-4 w-4" /> Cancel
-          </Button>
-          <Button type="submit" className="neon-accent-bg" disabled={isSubmitting || parseFloat(amount) > userProfile.wallet}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            Submit Request
-          </Button>
-        </DialogFooter>
-      </form>
+          <Alert variant="default" className="bg-primary/10 border-primary/30">
+            <Info className="h-4 w-4 !text-primary" /><AlertDescription className="!text-primary/80 text-xs">Requests are processed by admin. Ensure details are correct. Funds will be put on hold.</AlertDescription>
+          </Alert>
+      
+          <DialogFooter className="pt-4 sm:justify-between">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-muted-foreground text-muted-foreground" disabled={isSubmitting}>
+              <X className="mr-2 h-4 w-4" /> Cancel
+            </Button>
+            <Button type="submit" className="neon-accent-bg" disabled={isSubmitting || parseFloat(amount) > userProfile.wallet}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              Submit Request
+            </Button>
+          </DialogFooter>
+        </form>
+      </ScrollArea>
     </>
   );
 }

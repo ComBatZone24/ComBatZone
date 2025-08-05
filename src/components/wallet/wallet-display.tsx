@@ -1,354 +1,269 @@
+
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, FormEvent, useEffect, useCallback } from 'react';
 import type { User, WalletTransaction, RedeemCodeEntry, GlobalSettings } from '@/types';
-import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Download, ArrowRightLeft, Award as AwardIcon, Gift as GiftIcon, Users as UsersIcon, Banknote, CreditCard, Ticket, Loader2, Zap, Smartphone, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { Loader2, Wallet as WalletIcon, Gift, Smartphone, ArrowRight, X, CreditCard, Send, Ticket, MessageSquare } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
-import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { database, auth } from '@/lib/firebase/config'; 
-import { ref, update, push, runTransaction, get, query, orderByChild, equalTo } from 'firebase/database';
-import type { User as FirebaseUser } from 'firebase/auth'; 
+import { database } from '@/lib/firebase/config';
+import { ref, get, query, orderByChild, equalTo, runTransaction, push, update } from 'firebase/database';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
+import { format } from 'date-fns';
 import {
   Dialog,
   DialogContent,
-  DialogTrigger,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import WithdrawDialog from './withdraw-dialog';
 import MobileLoadDialog from './mobile-load-dialog';
-import { useAd } from '@/context/AdContext';
-import { Separator } from '../ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Coins } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { format, parseISO, formatDistanceToNow } from 'date-fns';
+import type { User as FirebaseUser } from 'firebase/auth';
+import GlassCard from '@/components/core/glass-card';
+import { useAuth } from '@/context/AuthContext';
 
 
 interface WalletDisplayProps {
   user: User;
-  transactions: WalletTransaction[];
   firebaseUser: FirebaseUser | null;
+  transactions: WalletTransaction[];
   settings: Partial<GlobalSettings>;
   onRefresh: () => void;
+  isLoading?: boolean; // Added isLoading prop
 }
 
-const WalletDisplay: React.FC<WalletDisplayProps> = ({ user, transactions, firebaseUser, settings, onRefresh }) => {
-  const { toast } = useToast();
-  const { triggerButtonAd } = useAd();
-  const [redeemCodeInput, setRedeemCodeInput] = useState('');
-  const [isRedeeming, setIsRedeeming] = useState(false);
-  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
-  const [isMobileLoadDialogOpen, setIsMobileLoadDialogOpen] = useState(false);
-  const [isRechargeLoading, setIsRechargeLoading] = useState(false);
-  
-  const applyReferralBonusIfNeeded = useCallback(async () => {
-    if (!firebaseUser || !database || !user) return;
-
-    if (user.appliedReferralCode && !user.referralBonusReceived) {
-        const bonusAmount = settings.referralBonusAmount || 0;
-        if (!settings.shareAndEarnEnabled || bonusAmount <= 0) return;
-
-        console.log(`Applying referral bonus for user ${user.id} with code ${user.appliedReferralCode}`);
-
-        try {
-            const usersRef = ref(database, 'users');
-            const referrerQuery = query(usersRef, orderByChild('referralCode'), equalTo(user.appliedReferralCode));
-            const referrerSnapshot = await get(referrerQuery);
-
-            if (referrerSnapshot.exists()) {
-                let referrerId = '';
-                let referrerData: User | null = null;
-                referrerSnapshot.forEach(child => {
-                    referrerId = child.key!;
-                    referrerData = child.val();
-                });
-
-                if (referrerId && referrerId !== user.id) {
-                    await runTransaction(ref(database, `users/${user.id}`), (currentUserData) => {
-                        if (currentUserData && !currentUserData.referralBonusReceived) {
-                            currentUserData.wallet = (currentUserData.wallet || 0) + bonusAmount;
-                            currentUserData.referralBonusReceived = bonusAmount;
-                        }
-                        return currentUserData;
-                    });
-                    
-                    await push(ref(database, `walletTransactions/${user.id}`), {
-                        type: 'referral_bonus_received', amount: bonusAmount, status: 'completed',
-                        date: new Date().toISOString(), description: `Referral bonus from ${referrerData?.username || 'referrer'}`,
-                    });
-                    
-                    await runTransaction(ref(database, `users/${referrerId}`), (currentReferrerData) => {
-                         if (currentReferrerData) {
-                            currentReferrerData.wallet = (currentReferrerData.wallet || 0) + bonusAmount;
-                            currentReferrerData.totalReferralCommissionsEarned = (currentReferrerData.totalReferralCommissionsEarned || 0) + bonusAmount;
-                        }
-                        return currentReferrerData;
-                    });
-                     await push(ref(database, `walletTransactions/${referrerId}`), {
-                        type: 'referral_commission_earned', amount: bonusAmount, status: 'completed',
-                        date: new Date().toISOString(), description: `Commission for referring ${user.username}`,
-                    });
-
-                    toast({ title: "Referral Bonus Applied!", description: `You and your referrer both received Rs ${bonusAmount}.`, className: "bg-green-500/20" });
-                    onRefresh();
-                }
-            } else {
-                await update(ref(database, `users/${user.id}`), { appliedReferralCode: `${user.appliedReferralCode}_INVALID` });
-            }
-        } catch (error) {
-            console.error("Error applying referral bonus:", error);
+const TransactionRow: React.FC<{ transaction: WalletTransaction }> = ({ transaction }) => {
+    const getTransactionIcon = (type: WalletTransaction['type']) => {
+        switch (type) {
+            case 'topup': return <CreditCard className="h-4 w-4 text-blue-400" />;
+            case 'prize': return <Gift className="h-4 w-4 text-yellow-400" />;
+            case 'redeem_code': return <Ticket className="h-4 w-4 text-green-400" />;
+            case 'referral_bonus_received':
+            case 'referral_commission_earned':
+            case 'daily_login_reward':
+            case 'cpa_grip_reward':
+                 return <Gift className="h-4 w-4 text-yellow-400" />;
+            default: return <WalletIcon className="h-4 w-4 text-muted-foreground" />;
         }
-    }
-  }, [firebaseUser, user, settings, toast, onRefresh]);
+    };
 
+    return (
+        <TableRow key={transaction.id} className="border-b-border/20">
+            <TableCell className="p-2 sm:p-3">
+            <div className="flex items-center gap-3">
+                <div className="bg-muted/30 p-2 rounded-md">
+                    {getTransactionIcon(transaction.type)}
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-sm font-medium text-foreground capitalize">{(transaction.type || '-').replace(/_/g, ' ')}</span>
+                    <span className="text-xs text-muted-foreground">{transaction.description || 'No details'}</span>
+                </div>
+            </div>
+            </TableCell>
+            <TableCell className="p-2 sm:p-3 text-right">
+            <div className={`font-semibold flex items-center justify-end ${transaction.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                {transaction.amount >= 0 ? '+' : '-'}<RupeeIcon className="inline h-3.5"/>{Math.abs(transaction.amount).toFixed(2)}
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">{new Date(transaction.date).toLocaleDateString()}</div>
+            </TableCell>
+        </TableRow>
+    );
+};
 
-  useEffect(() => {
-    applyReferralBonusIfNeeded();
-  }, [applyReferralBonusIfNeeded]);
+export default function WalletDisplay({ user, firebaseUser, transactions, settings, onRefresh, isLoading = false }: WalletDisplayProps) {
+  const { toast } = useToast();
+  const [redeemCode, setRedeemCode] = useState('');
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  
+  const [activeDialog, setActiveDialog] = useState<'withdraw' | 'mobile_load' | 'topup_info' | null>(null);
 
-
-  const getTransactionTypeIcon = (type: WalletTransaction['type']) => {
-    const iconClass = "w-6 h-6 shrink-0";
-    switch (type) {
-      case 'topup': return <PlusCircle className={`text-green-500 ${iconClass}`} />;
-      case 'withdrawal': return <Download className={`text-red-500 ${iconClass}`} />;
-      case 'entry_fee': return <Banknote className={`text-yellow-600 ${iconClass}`} />;
-      case 'prize': return <AwardIcon className={`text-blue-500 ${iconClass}`} />;
-      case 'redeem_code': return <Ticket className={`text-purple-500 ${iconClass}`} />;
-      case 'referral_bonus_received': return <GiftIcon className={`text-pink-500 ${iconClass}`} />;
-      case 'referral_commission_earned': return <UsersIcon className={`text-indigo-500 ${iconClass}`} />;
-      case 'refund': return <AwardIcon className={`text-cyan-500 ${iconClass}`} />;
-      case 'shop_purchase_hold': return <CreditCard className={`text-gray-500 ${iconClass}`} />;
-      case 'shop_purchase_complete': return <CreditCard className={`text-green-500 ${iconClass}`} />;
-      case 'watch_earn_conversion': return <Zap className={`text-yellow-400 ${iconClass}`} />;
-      default: return <ArrowRightLeft className={`text-muted-foreground ${iconClass}`} />;
-    }
-  };
-
-  const sortedTransactions = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-  const handleRedeemCode = async () => {
-    if (!redeemCodeInput.trim() || !firebaseUser || !database) {
-      toast({ title: "Input Error", description: "Please enter a redeem code.", variant: "destructive" });
+  const handleRedeemCode = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!redeemCode.trim()) {
+      toast({ title: "Input Invalid", description: "Please enter a redeem code.", variant: "destructive" });
       return;
+    }
+    
+    if (!user || !user.id) {
+        toast({ title: "Authentication Error", description: "You must be logged in to redeem a code.", variant: "destructive" });
+        return;
     }
 
     setIsRedeeming(true);
-    const codeString = redeemCodeInput.trim().toUpperCase();
-    const codeRef = ref(database, `redeemCodes/${codeString}`);
-
+    
     try {
-      const transactionResult = await runTransaction(codeRef, (currentData: RedeemCodeEntry | null) => {
-        if (currentData === null) {
-          throw new Error("This code is invalid or does not exist.");
-        }
-        if (currentData.timesUsed >= currentData.maxUses) {
-          throw new Error("This code has reached its maximum usage limit.");
-        }
-        if (currentData.claimedBy && currentData.claimedBy[firebaseUser.uid]) {
-          throw new Error("You have already used this code.");
-        }
-        
-        currentData.timesUsed = (currentData.timesUsed || 0) + 1;
-        if (!currentData.claimedBy) {
-          currentData.claimedBy = {};
-        }
-        currentData.claimedBy[firebaseUser.uid] = true;
+      if (!database) throw new Error("Firebase database is not initialized");
+      
+      const codeRef = ref(database, `redeemCodes/${redeemCode.toUpperCase()}`);
+      const codeSnapshot = await get(codeRef);
 
-        if(currentData.timesUsed >= currentData.maxUses) {
-            currentData.isUsed = true;
-        }
-        return currentData;
+      if (!codeSnapshot.exists()) {
+        throw new Error("Invalid or expired redeem code.");
+      }
+
+      const codeData = codeSnapshot.val() as RedeemCodeEntry;
+      
+      if ((codeData.timesUsed || 0) >= codeData.maxUses) {
+         throw new Error("This redeem code has reached its maximum usage limit.");
+      }
+      if (codeData.claimedBy && codeData.claimedBy[user.id]) {
+        throw new Error("You have already used this redeem code.");
+      }
+      
+      const userWalletRef = ref(database, `users/${user.id}/wallet`);
+      const transactionResult = await runTransaction(userWalletRef, (currentBalance) => {
+        return (currentBalance || 0) + codeData.amount;
       });
 
       if (!transactionResult.committed) {
-         throw new Error("Could not redeem code. It might have been claimed by another user just now. Please try again.");
+         throw new Error("Failed to update wallet. Please try again.");
       }
 
-      const redeemedCodeData = transactionResult.snapshot.val() as RedeemCodeEntry;
-      const userWalletRef = ref(database, `users/${firebaseUser.uid}/wallet`);
-      
-      await runTransaction(userWalletRef, (currentBalance) => (currentBalance || 0) + redeemedCodeData.amount);
+      const updates: Record<string, any> = {};
+      updates[`redeemCodes/${redeemCode.toUpperCase()}/timesUsed`] = (codeData.timesUsed || 0) + 1;
+      updates[`redeemCodes/${redeemCode.toUpperCase()}/claimedBy/${user.id}`] = new Date().toISOString();
+      await update(ref(database), updates);
 
-      const newTransaction: Omit<WalletTransaction, 'id'> = {
+      const walletTxRef = ref(database, `walletTransactions/${user.id}`);
+      const newTransactionData: Omit<WalletTransaction, 'id'> = {
         type: 'redeem_code',
-        amount: redeemedCodeData.amount,
+        amount: codeData.amount,
         status: 'completed',
         date: new Date().toISOString(),
-        description: `Redeemed code: ${codeString}`,
+        description: `Redeemed code: ${redeemCode.toUpperCase()}`,
       };
-      await push(ref(database, `walletTransactions/${firebaseUser.uid}`), newTransaction);
+      await push(walletTxRef, newTransactionData);
 
-      toast({ title: "Code Redeemed!", description: `Rs ${redeemedCodeData.amount} added to your wallet.`, className: "bg-green-500/20 text-green-300 border-green-500/30" });
-      setRedeemCodeInput('');
-      onRefresh();
+      toast({
+        title: "Code Redeemed!",
+        description: `Rs ${codeData.amount.toFixed(2)} has been added to your wallet.`,
+        className: "bg-green-500/20 text-green-300 border-green-500/30",
+      });
+      setRedeemCode('');
+      onRefresh(); // Trigger a refresh of user data from the parent
 
     } catch (error: any) {
-        toast({ title: "Redemption Error", description: error.message, variant: "destructive" });
+      toast({ title: "Redemption Failed", description: error.message, variant: "destructive" });
     } finally {
-        setIsRedeeming(false);
+      setIsRedeeming(false);
     }
   };
   
-  const handleRechargeClick = async () => {
-    setIsRechargeLoading(true);
-    
-    try {
-      const adminNumbers = settings?.contactWhatsapp || [];
-      if (adminNumbers.length === 0) {
-        throw new Error("Contact information is not configured by the admin.");
-      }
-      const contactNumber = adminNumbers[Math.floor(Math.random() * adminNumbers.length)];
-  
-      const cleanedNumber = contactNumber.replace(/\D/g, '');
-  
-      const timeSinceRegistration = user.createdAt ? formatDistanceToNow(parseISO(user.createdAt), { addSuffix: true }) : 'N/A';
-      const rechargeMessage = `Assalamualaikum, Admin!
-
-I need to top-up my Arena Ace wallet. Here are my details:
------------------------------------
-*Username:* ${user.username || 'N/A'}
-*User ID:* ${user.id || 'N/A'}
-*Referred By Code:* ${user.appliedReferralCode || 'N/A'}
-*Member Since:* ${timeSinceRegistration}
------------------------------------
-
-Please guide me on the payment process. Thank you!`.trim();
-  
-      const url = `https://wa.me/${cleanedNumber}?text=${encodeURIComponent(rechargeMessage)}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
-  
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } finally {
-      setIsRechargeLoading(false);
-    }
-  };
-  
-  const isMobileLoadEnabled = settings?.mobileLoadEnabled === true;
-  const canRecharge = settings?.contactWhatsapp && settings.contactWhatsapp.length > 0;
+  const topupWhatsappUrl = settings.contactWhatsapp && settings.contactWhatsapp.length > 0 ? `${settings.contactWhatsapp[0]}` : '#';
 
   return (
+    isLoading ? (
+      <div className="flex flex-col items-center justify-center p-8">
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
+        <p className="mt-4 text-muted-foreground">Loading wallet data...</p>
+      </div>
+    ) : (
     <div className="space-y-8">
-      <GlassCard className="p-6 md:p-8 shadow-xl border-2 border-accent/30 hover:shadow-accent/50 transition-shadow duration-300">
-        <div className="flex flex-col items-center text-center mb-6">
-          <p className="text-base sm:text-lg text-muted-foreground mb-1">Your Arena Balance</p>
-          <div className="text-5xl sm:text-6xl md:text-7xl font-bold text-accent flex items-center neon-accent-text">
-            <RupeeIcon className="mr-2 h-10 sm:h-12 w-auto" /> {user.wallet.toFixed(2)}
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Button className="bg-green-500 hover:bg-green-600 text-white text-base py-2 sm:py-3 shadow-lg hover:shadow-green-500/50 transition-shadow col-span-1" onClick={handleRechargeClick} disabled={!canRecharge || isRechargeLoading}>
-             {isRechargeLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <PlusCircle className="mr-2 h-5 w-5" />}
-              Contact for Top-up
-              {!canRecharge && <span className="ml-2 text-xs opacity-70">(N/A)</span>}
-          </Button>
-
-          {isMobileLoadEnabled && (
-            <Dialog open={isMobileLoadDialogOpen} onOpenChange={setIsMobileLoadDialogOpen}>
-              <DialogTrigger asChild>
-                  <Button variant="outline" className="border-accent text-accent hover:bg-accent/10 text-base py-2 sm:py-3 shadow-lg hover:shadow-accent/30 transition-shadow col-span-1">
-                      <Smartphone className="mr-2 h-5 w-5" /> Mobile Load
-                  </Button>
-              </DialogTrigger>
-              <DialogContent className="glass-card sm:max-w-md">
-                  <MobileLoadDialog
-                      firebaseUser={firebaseUser}
-                      userProfile={user}
-                      onOpenChange={setIsMobileLoadDialogOpen}
-                      onSuccess={onRefresh}
-                  />
-              </DialogContent>
-            </Dialog>
+      <GlassCard className="p-6 md:p-8 text-center">
+        <p className="text-muted-foreground mb-1">Current Wallet Balance</p>
+        <h2 className="text-5xl md:text-6xl font-bold text-foreground mb-6 flex items-center justify-center neon-accent-text">
+            <RupeeIcon className="inline h-12 -mt-2"/> 
+            {(user.wallet || 0).toFixed(2)}
+        </h2>
+        
+        <div className="flex flex-wrap items-center justify-center gap-3">
+           <Button variant="outline" className="flex-grow sm:flex-grow-0 border-accent text-accent hover:bg-accent/10 hover:text-accent-foreground" onClick={() => setActiveDialog('withdraw')}>
+              Withdraw Funds
+           </Button>
+          {settings.mobileLoadEnabled && (
+             <Button variant="outline" className="flex-grow sm:flex-grow-0 border-accent text-accent hover:bg-accent/10 hover:text-accent-foreground" onClick={() => setActiveDialog('mobile_load')}>
+                <Smartphone className="mr-2 h-4 w-4"/>Mobile Load
+             </Button>
           )}
+           <Button variant="default" className="flex-grow sm:flex-grow-0 neon-accent-bg" onClick={() => setActiveDialog('topup_info')}>
+                <MessageSquare className="mr-2 h-4 w-4"/>How to Topup?
+           </Button>
+        </div>
+      </GlassCard>
 
-          <Dialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="border-accent text-accent hover:bg-accent/10 text-base py-2 sm:py-3 shadow-lg hover:shadow-accent/30 transition-shadow col-span-1" onClick={() => triggerButtonAd(() => setIsWithdrawDialogOpen(true), 'wallet_withdraw')}>
-                <Download className="mr-2 h-5 w-5" /> Withdraw
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="glass-card sm:max-w-md">
-              <WithdrawDialog 
-                firebaseUser={firebaseUser} 
-                userProfile={user} 
-                onOpenChange={setIsWithdrawDialogOpen}
-                onSuccess={onRefresh}
-                settings={settings}
+      <Dialog open={activeDialog !== null} onOpenChange={(open) => !open && setActiveDialog(null)}>
+        <DialogContent className="glass-card sm:max-w-md">
+          {activeDialog === 'withdraw' && (
+            <WithdrawDialog 
+              onOpenChange={(open) => !open && setActiveDialog(null)}
+              onSuccess={onRefresh}
+              settings={settings}
+            />
+          )}
+           {activeDialog === 'mobile_load' && (
+            <MobileLoadDialog 
+              userProfile={user}
+              firebaseUser={firebaseUser}
+              onOpenChange={(open) => !open && setActiveDialog(null)}
+              onSuccess={onRefresh}
+            />
+          )}
+           {activeDialog === 'topup_info' && (
+            <>
+              <DialogHeader>
+                  <DialogTitle className="text-xl text-accent">How to Topup?</DialogTitle>
+                  <DialogDescription>Contact admin via WhatsApp to add funds to your wallet.</DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                  <p className="text-sm text-muted-foreground">Please contact the administrator on WhatsApp to request a top-up. They will provide you with payment details and credit your account upon confirmation.</p>
+              </div>
+              <DialogFooter>
+                  <DialogClose asChild><Button type="button" variant="outline">Close</Button></DialogClose>
+                  <Button asChild className="neon-accent-bg"><a href={topupWhatsappUrl} target="_blank" rel="noopener noreferrer"><MessageSquare className="mr-2 h-4 w-4"/> Contact Admin</a></Button>
+              </DialogFooter>
+            </>
+           )}
+        </DialogContent>
+      </Dialog>
+
+
+       <GlassCard className="p-6 md:p-8">
+        <h3 className="text-xl font-semibold text-foreground mb-1 flex items-center gap-2"><Gift className="h-5 w-5 text-accent"/> Redeem Gift Code</h3>
+        <p className="text-sm text-muted-foreground mb-4">Enter a gift code provided by the administrator to redeem your reward.</p>
+         <form onSubmit={handleRedeemCode} className="flex items-center space-x-2">
+            <div className="relative flex-grow">
+              <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                  id="redeemCodeInput" 
+                  placeholder="Enter Code" 
+                  className="pl-10 pr-4 py-3 bg-input/50" 
+                  value={redeemCode}
+                  onChange={(e) => setRedeemCode(e.target.value.toUpperCase())}
               />
-            </DialogContent>
-          </Dialog>
-        </div>
-      </GlassCard>
-
-      <GlassCard className="p-6 md:p-8 shadow-xl">
-        <div className="space-y-4 text-center md:text-left">
-             <h3 className="text-2xl font-semibold text-foreground flex items-center justify-center sm:justify-start">
-                <GiftIcon className="mr-3 h-7 w-7 text-accent" /> Redeem Gift Code
-            </h3>
-            <p className="text-sm text-muted-foreground">
-                Enter your gift code below to instantly add funds to your wallet.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 items-center">
-                <div className="relative flex-grow w-full">
-                    <Ticket className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input id="redeemCodeInput" placeholder="Enter code" className="pl-10 pr-4 py-3 bg-input/50" value={redeemCodeInput} onChange={(e) => setRedeemCodeInput(e.target.value.toUpperCase())} disabled={isRedeeming} />
-                </div>
-                <Button className="neon-accent-bg w-full sm:w-auto" onClick={handleRedeemCode} disabled={isRedeeming || !redeemCodeInput}>
-                    {isRedeeming ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Redeem'}
-                </Button>
             </div>
-        </div>
-      </GlassCard>
-      
-      <GlassCard className="p-0 shadow-xl">
-        <div className="p-6 border-b border-border/30 flex justify-between items-center">
-          <div>
-            <h3 className="text-2xl font-semibold text-foreground">Transaction History</h3>
-            <p className="text-sm text-muted-foreground mt-1">View all your recent wallet activities.</p>
-          </div>
-          <Button variant="outline" size="sm" onClick={onRefresh} className="text-accent border-accent hover:bg-accent/10">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin hidden" id="refresh-spinner" /> Refresh
-          </Button>
+            <Button type="submit" className="neon-accent-bg" disabled={isRedeeming}>
+              {isRedeeming ? <Loader2 className="animate-spin" /> : "Redeem"}
+            </Button>
+          </form>
+       </GlassCard>
+
+      <GlassCard className="p-0">
+        <div className="p-4 border-b border-border/30">
+          <h3 className="text-xl font-semibold">Transaction History</h3>
         </div>
         {transactions.length > 0 ? (
-          <ScrollArea className="h-[600px] w-full">
-            <ul className="divide-y divide-border/30">
-              {sortedTransactions.map((tx) => (
-                <li key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/10 transition-colors">
-                  <div className="flex items-center gap-4">
-                    {getTransactionTypeIcon(tx.type)}
-                    <div>
-                      <p className="font-medium text-sm text-foreground">{tx.description || tx.type.replace(/_/g, ' ').replace(/w/g, l => l.toUpperCase())}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(tx.date).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`font-semibold text-md ${tx.amount >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {tx.amount >= 0 ? '+' : '-'}<RupeeIcon className="inline h-3.5 w-auto mr-0.5" />{Math.abs(tx.amount).toFixed(2)}
-                    </p>
-                    <Badge variant={tx.status === 'completed' ? 'default' : tx.status === 'pending' || tx.status === 'on_hold' ? 'secondary' : 'destructive'} className="mt-1 text-xs capitalize">
-                      {tx.status?.replace(/_/g, ' ')}
-                    </Badge>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <ScrollArea className="h-96">
+            <Table>
+              <TableBody>
+                {transactions.map(tx => <TransactionRow key={tx.id} transaction={tx} />)}
+              </TableBody>
+            </Table>
           </ScrollArea>
         ) : (
-          <div className="p-6 text-center text-muted-foreground py-16"> 
-            <CreditCard className="mx-auto h-16 w-16 text-muted-foreground/40 mb-6" />
-            <p className="text-xl font-semibold text-foreground mb-1">No Transactions Yet</p>
-            <p className="text-sm">Your wallet activity will appear here once you make any transactions.</p>
-          </div>
+          <p className="text-center text-muted-foreground p-10">No transactions yet.</p>
         )}
       </GlassCard>
     </div>
+    )
   );
-};
-export default WalletDisplay;
+}

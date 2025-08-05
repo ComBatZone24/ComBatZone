@@ -170,7 +170,7 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament: initialTour
   return (
     <>
       <GlassCard className="flex flex-col overflow-hidden transition-all duration-300 w-full max-w-sm mx-auto group">
-        <div className="relative w-full h-40 md:h-48">
+        <div className="relative w-full h-40 md:h-48 cursor-pointer" onClick={() => (window.location.href = `/tournaments/${id}`)}>
           <Image src={finalBannerUrl} alt={name} fill style={{ objectFit: "cover" }} className="transition-transform duration-500 group-hover:scale-110" sizes="(max-width: 768px) 100vw, 33vw" data-ai-hint={hint} priority />
           <div className="absolute inset-0 flex flex-col justify-between p-3">
             <div className="flex justify-between items-start">
@@ -184,7 +184,7 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament: initialTour
           </div>
         </div>
         <div className="p-3 flex flex-col flex-grow">
-          <div>
+          <div className="cursor-pointer" onClick={() => (window.location.href = `/tournaments/${id}`)}>
             <div className="mb-2"> 
               <h3 className="font-bold text-lg text-foreground leading-tight mb-0.5">{name}</h3> 
               <p className="text-xs text-muted-foreground">{game} - {mode}{map ? ` - ${map}` : ''}</p> 
@@ -234,8 +234,8 @@ const TournamentCard: React.FC<TournamentCardProps> = ({ tournament: initialTour
                     <DialogTitle className="text-accent flex items-center"><UserPlus className="mr-2" />Join: {name}</DialogTitle>
                     <DialogDescription>Entry fee: Rs {entryFee}.</DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="max-h-[60vh] pr-4">
-                    <div className="my-4 space-y-4">
+                <ScrollArea className="max-h-[70vh] pr-2">
+                    <div className="my-4 space-y-4 pr-2">
                         <Alert variant="default" className="bg-background/50 border-border/50"><Info className="h-4 w-4 !text-foreground" /><AlertTitle className="text-foreground">Your Details</AlertTitle><AlertDescription className="text-xs text-muted-foreground">Current Wallet: <span className="font-semibold text-foreground">Rs {currentUserProfile?.wallet?.toFixed(2) || '0.00'}</span></AlertDescription></Alert>
                         <div className="space-y-2"><div><Label htmlFor="userGameName" className="text-xs text-muted-foreground">IGN</Label><Input id="userGameName" value={userGameName} onChange={(e) => setUserGameName(e.target.value)} placeholder="Your IGN" className="mt-1 bg-input/50"/></div><div><Label htmlFor="userGameUid" className="text-xs text-muted-foreground">Game ID</Label><Input id="userGameUid" value={userGameUid} onChange={(e) => setUserGameUid(e.target.value)} placeholder="Your Game ID" className="mt-1 bg-input/50"/></div>{(!userGameName.trim() || !userGameUid.trim()) && (<Alert variant="destructive" className="text-xs"><AlertTriangle className="h-4 w-4"/> <AlertDescription>Please fill IGN and Game ID.</AlertDescription></Alert>)}</div>
                         {mode === 'Custom' && (<div className="space-y-2 mb-4"><Label htmlFor="numCustomTeammatesSelect" className="text-xs text-muted-foreground">Teammates</Label><Select value={String(numCustomTeammates)} onValueChange={(value) => setNumCustomTeammates(parseInt(value, 10))}><SelectTrigger id="numCustomTeammatesSelect" className="bg-input/50"><SelectValue/></SelectTrigger><SelectContent className="glass-card"><SelectItem value="0">0</SelectItem><SelectItem value="1">1</SelectItem><SelectItem value="2">2</SelectItem><SelectItem value="3">3</SelectItem></SelectContent></Select></div>)}

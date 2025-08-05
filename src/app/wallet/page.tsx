@@ -1,84 +1,65 @@
 
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import WalletDisplay from '@/components/wallet/wallet-display';
-import type { User, WalletTransaction, GlobalSettings } from '@/types';
+import type { WalletTransaction, GlobalSettings } from '@/types';
 import { AlertTriangle, LogIn, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, get, update, query, orderByChild, equalTo, runTransaction, push, serverTimestamp, off } from 'firebase/database';
-import type { User as FirebaseUser } from 'firebase/auth';
+import { ref, onValue, off } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
-import GlassCard from '@/components/core/glass-card';
-import { Coins } from 'lucide-react';
-import Image from 'next/image';
-import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { mockGlobalSettings } from '@/lib/mock-data';
 import { useAuth } from '@/context/AuthContext';
-import AdSenseDisplayAd from '@/components/ads/AdSenseDisplayAd';
 
 
 export default function WalletPage() {
   const { user: appUser, authUser, loading: isAuthLoading, refreshUser } = useAuth();
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [globalSettings, setGlobalSettings] = useState<Partial<GlobalSettings>>({});
-  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
-
+  
   useEffect(() => {
-    if (!appUser) {
-      setIsLoading(false);
-      return;
-    }
-
-    if (!database) {
-      toast({ title: "DB Error", description: "Firebase database not initialized.", variant: "destructive" });
-      setTransactions([]);
-      setIsLoading(false);
+    // Wait for auth to finish and user object to be available
+    if (isAuthLoading || !appUser?.id || !database) {
+      if(!isAuthLoading) { // If auth is done but no user/db, clear data
+        setTransactions([]);
+        setGlobalSettings({});
+      }
       return;
     }
     
-    const transactionsQuery = ref(database, `walletTransactions/${appUser.id}`);
-    const unsubscribeTransactions = onValue(transactionsQuery, (snapshot) => {
-      if (snapshot.exists()) {
-        const transactionsData = snapshot.val();
-        const fetchedTransactions: WalletTransaction[] = Object.keys(transactionsData).map(txId => ({
-          id: txId,
-          ...transactionsData[txId],
-        }));
-        setTransactions(fetchedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-      } else {
-        setTransactions([]);
-      }
+    const userId = appUser.id;
+    const transactionsQuery = ref(database, `walletTransactions/${userId}`);
+    const settingsRef = ref(database, 'globalSettings');
+
+    const onTransactionValue = onValue(transactionsQuery, (snapshot) => {
+      const transactionsData = snapshot.val();
+      const fetchedTransactions: WalletTransaction[] = transactionsData 
+        ? Object.keys(transactionsData).map(txId => ({ id: txId, ...transactionsData[txId] }))
+        : [];
+      setTransactions(fetchedTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     }, (error) => {
       console.error("Error fetching transactions:", error);
       toast({ title: "Transactions Error", description: "Could not get transaction history.", variant: "destructive"});
     });
 
-    const settingsRef = ref(database, 'globalSettings');
-    const unsubscribeSettings = onValue(settingsRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setGlobalSettings(snapshot.val());
-      } else {
-        console.warn("Global settings not found, using mock data as fallback.");
-        setGlobalSettings(mockGlobalSettings);
-      }
-      setIsLoading(false);
+    const onSettingsValue = onValue(settingsRef, (snapshot) => {
+      setGlobalSettings(snapshot.exists() ? snapshot.val() : mockGlobalSettings);
     }, (error) => {
       console.error("Error fetching global settings:", error);
       setGlobalSettings(mockGlobalSettings);
-      setIsLoading(false);
     });
 
     return () => {
-      unsubscribeTransactions();
-      unsubscribeSettings();
+      off(transactionsQuery, 'value', onTransactionValue);
+      off(settingsRef, 'value', onSettingsValue);
     };
-  }, [appUser, toast]);
+  }, [appUser, isAuthLoading, toast]);
 
-  if (isAuthLoading || isLoading) {
+
+  if (isAuthLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-10rem)]">
         <Loader2 className="h-16 w-16 animate-spin text-accent" />
@@ -104,17 +85,11 @@ export default function WalletPage() {
     <div className="pt-8 space-y-8">
       <WalletDisplay 
         user={appUser} 
-        transactions={transactions} 
         firebaseUser={authUser}
+        transactions={transactions} 
         settings={globalSettings}
         onRefresh={refreshUser}
       />
-      
-      {/* AdSense Display Ad Unit */}
-      <GlassCard className="p-4 md:p-6 text-center">
-          <p className="text-xs text-muted-foreground mb-2">Advertisement</p>
-          <AdSenseDisplayAd />
-      </GlassCard>
     </div>
   );
 }

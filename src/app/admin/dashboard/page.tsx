@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import GlassCard from '@/components/core/glass-card';
 import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Gamepad2, UserPlus, DownloadCloud, Hourglass, Loader2, Trash, UserCircle, LogOut, Wallet, Activity, TrendingUp, TrendingDown, FileText, Ticket, Save } from 'lucide-react';
+import { Users, Gamepad2, UserPlus, DownloadCloud, Hourglass, Loader2, Trash, UserCircle, LogOut, Wallet, Activity, TrendingUp, TrendingDown, FileText, Ticket, Save, Copy } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -85,6 +85,8 @@ export default function AdminDashboardPage() {
   const [redeemAmount, setRedeemAmount] = useState('');
   const [maxUses, setMaxUses] = useState<number | string>(1);
   const [isGeneratingCode, setIsGeneratingCode] = useState(false);
+  const [recentlyGeneratedCodes, setRecentlyGeneratedCodes] = useState<(RedeemCodeEntry & { codeString: string })[]>([]);
+
 
   useEffect(() => {
     const fetchOtherData = async () => {
@@ -265,6 +267,10 @@ export default function AdminDashboardPage() {
       };
       
       await set(ref(database, `redeemCodes/${codeString}`), newCodeEntry);
+      
+      const newCodeForDisplay = { ...newCodeEntry, codeString };
+      setRecentlyGeneratedCodes(prev => [newCodeForDisplay, ...prev].slice(0, 5));
+
       toast({ title: "Code Generated", description: `Code "${codeString}" created.`, className: "bg-green-500/20" });
       setRedeemCode('');
       setRedeemAmount('');
@@ -274,6 +280,11 @@ export default function AdminDashboardPage() {
     } finally {
       setIsGeneratingCode(false);
     }
+  };
+  
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({ title: "Copied!", description: `Code "${code}" copied to clipboard.` });
   };
 
   const renderTimestamp = (timestamp: string) => {
@@ -385,6 +396,22 @@ export default function AdminDashboardPage() {
                             Generate Code
                         </Button>
                     </form>
+                    {recentlyGeneratedCodes.length > 0 && (
+                        <div className="mt-6 space-y-2">
+                            <h4 className="text-sm font-semibold text-muted-foreground">Recently Generated:</h4>
+                             <ul className="space-y-2">
+                                {recentlyGeneratedCodes.map(code => (
+                                    <li key={code.codeString} className="flex items-center justify-between p-2 bg-muted/30 rounded-md">
+                                        <div className="flex items-center gap-3">
+                                            <p className="font-mono text-foreground text-sm">{code.codeString}</p>
+                                            <p className="text-xs text-muted-foreground">(Rs {code.amount}, {code.maxUses} uses)</p>
+                                        </div>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopyCode(code.codeString)}><Copy className="h-4 w-4"/></Button>
+                                    </li>
+                                ))}
+                             </ul>
+                        </div>
+                    )}
                 </GlassCard>
             </motion.div>
             )}
@@ -428,3 +455,4 @@ export default function AdminDashboardPage() {
     </div>
   );
 }
+

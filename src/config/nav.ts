@@ -297,6 +297,13 @@ export const adminNavItems: NavItem[] = [
     description: 'Access the hub for all site-wide settings and feature configurations.',
     permissionKey: 'settings',
   },
+  {
+    title: 'Deployment Guide',
+    href: '/admin/deployment-guide',
+    icon: Upload,
+    description: 'Instructions on how to deploy your app outside of Firebase Studio.',
+    permissionKey: 'settings', // Re-use settings permission
+  },
 ];
 
 export const settingsCategories = [
@@ -395,12 +402,6 @@ export const settingsCategories = [
     href: '/admin/settings/user-inactivity',
     icon: Users,
     description: 'Define rules for handling inactive accounts.',
-  },
-  {
-    title: 'Deployment Guide',
-    href: '/admin/deployment-guide',
-    icon: Upload,
-    description: 'Instructions on how to deploy your app outside of Firebase Studio.',
   },
   {
     title: 'Database Backup',

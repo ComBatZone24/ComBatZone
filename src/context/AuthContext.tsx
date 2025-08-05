@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useMemo, type ReactNode, useCallback } from 'react';
-import { ref, onValue, get, onDisconnect, set, serverTimestamp } from 'firebase/database';
+import { ref, onValue, get, onDisconnect, set, serverTimestamp, off } from 'firebase/database';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { auth, database } from '@/lib/firebase/config'; // Your Firebase config
 import type { User as AppUserType } from '@/types'; // Your custom user type
@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation';
 // 1. DEFINING THE CONTEXT TYPE
 interface AuthContextType {
   user: AppUserType | null;
+  authUser: FirebaseUser | null; // Expose Firebase user for specific tasks
   loading: boolean;
   refreshUser: () => void;
 }
@@ -48,24 +49,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const router = useRouter(); // Get the router instance
 
   const refreshUser = useCallback(async () => {
-    if (!firebaseUser || !database) return;
+    const currentFbUser = auth.currentUser;
+    if (!currentFbUser || !database) return;
 
-    const userRef = ref(database, `users/${firebaseUser.uid}`);
+    const userRef = ref(database, `users/${currentFbUser.uid}`);
     try {
       const snapshot = await get(userRef);
       if (snapshot.exists()) {
         const dbUser = snapshot.val();
         setUser({
-          ...buildFallbackUser(firebaseUser),
+          ...buildFallbackUser(currentFbUser),
           ...dbUser,
-          id: firebaseUser.uid,
-          email: firebaseUser.email,
+          id: currentFbUser.uid,
+          email: currentFbUser.email,
         });
       }
     } catch (error) {
       console.error("Error manually refreshing user data:", error);
     }
-  }, [firebaseUser]);
+  }, []);
 
   useEffect(() => {
     let dbUnsubscribe: () => void = () => {};
@@ -82,19 +84,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (!fbUser) {
         setUser(null);
-        setLoading(false);
+        setLoading(false); // CRITICAL: Set loading to false when user logs out
         return;
       }
       
       if (!database) {
         console.error("AuthContext: Firebase Database is not initialized. Cannot set up user listeners.");
-        setLoading(false);
+        setUser(buildFallbackUser(fbUser)); 
+        setLoading(false); // CRITICAL: Set loading to false on DB error
         return;
       }
 
       const userRef = ref(database, `users/${fbUser.uid}`);
       const presenceRef = ref(database, `.info/connected`);
       const userStatusRef = ref(database, `users/${fbUser.uid}/isOnline`);
+
+      setLoading(true);
       const lastSeenRef = ref(database, `users/${fbUser.uid}/lastLogin`);
 
       onValue(presenceRef, (snap) => {
@@ -121,18 +126,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             console.warn(`No database entry for user ${fbUser.uid}. Using fallback profile.`);
             setUser(buildFallbackUser(fbUser));
           }
-          setLoading(false);
+          setLoading(false); // CRITICAL: Set loading to false after DB data is processed
         },
         (error: any) => {
           console.error("Firebase onValue error:", error.code, error.message);
-          // Gracefully handle max connection errors
           if (error.code === 'database/disconnected' || error.code === 'database/max-connections') {
               console.warn("Max Firebase connections reached or disconnected. Redirecting to offline page.");
               router.push('/offline');
           } else {
               setUser(buildFallbackUser(fbUser));
           }
-          setLoading(false);
+          setLoading(false); // CRITICAL: Set loading to false on DB error
         }
       );
     });
@@ -142,9 +146,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       dbUnsubscribe();
       if (presenceUnsubscribe) presenceUnsubscribe();
     };
-  }, [router]); // Add router to dependency array
+  }, [router]);
 
-  const value = useMemo(() => ({ user, loading, refreshUser }), [user, loading, refreshUser]);
+  const value = useMemo(() => ({ user, authUser: firebaseUser, loading, refreshUser }), [user, firebaseUser, loading, refreshUser]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -161,4 +165,3 @@ export const useAuth = () => {
   }
   return context;
 };
-

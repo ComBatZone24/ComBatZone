@@ -15,6 +15,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { Loader2, Send, X, ShoppingBag, AlertCircle, TicketPercent } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { ScrollArea } from '../ui/scroll-area';
 
 
 interface BuyNowDialogProps {
@@ -171,60 +172,61 @@ export default function BuyNowDialog({ item, coupon, firebaseUser, appUser, onOp
             </div>
         )}
       </DialogHeader>
-      <form onSubmit={handleSubmit} className="space-y-4 py-4">
-        <div>
-          <Label htmlFor="fullName">Full Name</Label>
-          <Input id="fullName" name="fullName" value={formData.fullName} onChange={handleInputChange} placeholder="Your Full Name" required className="bg-input/50 border-border/70 focus:border-accent" />
-        </div>
-        <div>
-          <Label htmlFor="address">Full Home Address</Label>
-          <Textarea id="address" name="address" value={formData.address} onChange={handleInputChange} placeholder="Street, House No., Landmark, etc." required className="bg-input/50 border-border/70 focus:border-accent" />
-        </div>
-        <div>
-          <Label htmlFor="phone">Phone Number</Label>
-          <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} placeholder="Your Contact Number" required className="bg-input/50 border-border/70 focus:border-accent" />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
+      <ScrollArea className="max-h-[70vh]">
+        <form onSubmit={handleSubmit} className="space-y-4 py-4 pr-4">
           <div>
-            <Label htmlFor="city">City</Label>
-            <Input id="city" name="city" value={formData.city} onChange={handleInputChange} placeholder="Your City" required className="bg-input/50 border-border/70 focus:border-accent" />
+            <Label htmlFor="fullName">Full Name</Label>
+            <Input id="fullName" name="fullName" value={formData.fullName} onChange={handleInputChange} placeholder="Your Full Name" required className="bg-input/50 border-border/70 focus:border-accent" />
           </div>
           <div>
-            <Label htmlFor="postalCode">Postal Code</Label>
-            <Input id="postalCode" name="postalCode" value={formData.postalCode} onChange={handleInputChange} placeholder="City Postal Code" required className="bg-input/50 border-border/70 focus:border-accent" />
+            <Label htmlFor="address">Full Home Address</Label>
+            <Textarea id="address" name="address" value={formData.address} onChange={handleInputChange} placeholder="Street, House No., Landmark, etc." required className="bg-input/50 border-border/70 focus:border-accent" />
           </div>
-        </div>
+          <div>
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} placeholder="Your Contact Number" required className="bg-input/50 border-border/70 focus:border-accent" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="city">City</Label>
+              <Input id="city" name="city" value={formData.city} onChange={handleInputChange} placeholder="Your City" required className="bg-input/50 border-border/70 focus:border-accent" />
+            </div>
+            <div>
+              <Label htmlFor="postalCode">Postal Code</Label>
+              <Input id="postalCode" name="postalCode" value={formData.postalCode} onChange={handleInputChange} placeholder="City Postal Code" required className="bg-input/50 border-border/70 focus:border-accent" />
+            </div>
+          </div>
 
-        {formError && (
-            <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{formError}</AlertDescription>
-            </Alert>
-        )}
+          {formError && (
+              <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Error</AlertTitle>
+                  <AlertDescription>{formError}</AlertDescription>
+              </Alert>
+          )}
 
-        <Alert variant="default" className="bg-primary/10 border-primary/30">
-            <AlertCircle className="h-4 w-4 !text-primary" />
-            <AlertTitle className="!text-primary">Payment Note</AlertTitle>
-            <AlertDescription className="!text-primary/80 text-xs">
-              Final Amount: <RupeeIcon className="inline h-3" />{finalPrice.toFixed(2)}. 
-              Available Balance: <RupeeIcon className="inline h-3" />{appUser?.wallet.toFixed(2) ?? '0.00'}
-            </AlertDescription>
-        </Alert>
+          <Alert variant="default" className="bg-primary/10 border-primary/30">
+              <AlertCircle className="h-4 w-4 !text-primary" />
+              <AlertTitle className="!text-primary">Payment Note</AlertTitle>
+              <AlertDescription className="!text-primary/80 text-xs">
+                Final Amount: <RupeeIcon className="inline h-3" />{finalPrice.toFixed(2)}. 
+                Available Balance: <RupeeIcon className="inline h-3" />{appUser?.wallet.toFixed(2) ?? '0.00'}
+              </AlertDescription>
+          </Alert>
 
-        <DialogFooter className="pt-4">
-          <DialogClose asChild>
-            <Button type="button" variant="outline" className="border-muted-foreground text-muted-foreground hover:bg-muted/20" disabled={isSubmitting}>
-              <X className="mr-2 h-4 w-4" /> Cancel
+          <DialogFooter className="pt-4">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" className="border-muted-foreground text-muted-foreground hover:bg-muted/20" disabled={isSubmitting}>
+                <X className="mr-2 h-4 w-4" /> Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" className="neon-accent-bg" disabled={isSubmitting || (Number(appUser?.wallet ?? 0) < finalPrice)}>
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+              {isSubmitting ? "Processing..." : "Confirm & Pay"}
             </Button>
-          </DialogClose>
-          <Button type="submit" className="neon-accent-bg" disabled={isSubmitting || (Number(appUser?.wallet ?? 0) < finalPrice)}>
-            {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            {isSubmitting ? "Processing..." : "Confirm & Pay"}
-          </Button>
-        </DialogFooter>
-      </form>
+          </DialogFooter>
+        </form>
+      </ScrollArea>
     </>
   );
 }
-    
