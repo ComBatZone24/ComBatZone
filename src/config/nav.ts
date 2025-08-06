@@ -1,4 +1,3 @@
-
 import {
   Home,
   Wallet,
@@ -45,7 +44,7 @@ import {
   Upload,
   ArrowUpCircle,
   SquareDashedKanban,
-  Youtube, // Added
+  Youtube,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -128,6 +127,13 @@ export const adminNavItems: NavItem[] = [
     icon: LayoutDashboard,
     description: 'Get a high-level overview of key platform statistics and recent activities.',
     permissionKey: 'dashboard',
+  },
+  {
+    title: 'AI Content Studio',
+    href: '/admin/ai-content-studio',
+    icon: Wand2,
+    description: 'Generate SEO-optimized content for social media platforms using AI.',
+    permissionKey: 'settings', // Re-use settings permission for simplicity
   },
   {
     title: 'Task Analysis',

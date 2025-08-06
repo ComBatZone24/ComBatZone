@@ -29,7 +29,7 @@
         "watchAndEarnPoints": { ".write": "auth.uid === $uid" },
         "dailyClickAndEarn": { ".write": "auth.uid === $uid" },
         "wallet": {
-            ".write": "auth != null && (auth.uid === $uid || (newData.isNumber() && newData.val() > data.val()))"
+            ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
         },
         "pendingYoutubeSubmissions": {
             ".read": "auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin'",
@@ -74,7 +74,7 @@
       ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('transactions').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('referralAnalysis').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('taskAnalysis').val() === true)))",
       "$uid": {
         ".indexOn": ["date", "status", "requestId"],
-        ".write": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
         ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || (root.child('users').child(auth.uid).child('delegatePermissions').exists() && root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').exists() && (root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('withdrawals').val() === true || root.child('users').child(auth.uid).child('delegatePermissions').child('accessScreens').child('dashboard').val() === true)))"
       }
     },
@@ -104,8 +104,7 @@
     },
     
     "pending_payouts": {
-      ".indexOn": ["referrerId"],
-      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || (query.orderByChild === 'referrerId' && query.equalTo === auth.uid))",
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       ".write": "auth != null"
     },
 
