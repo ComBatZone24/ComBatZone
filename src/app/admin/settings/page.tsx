@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import GlassCard from '@/components/core/glass-card';
-import { Settings, Ticket, Share2, Eye, Server, Link2 as LinkIconLucide, Users, ChevronRight, ShieldAlert, Tv, MousePointerClick, Gift, Palette, Youtube, Rocket, Coins, Gamepad2, ImagePlay, Cpu, Lock } from 'lucide-react';
+import { Settings, Ticket, Share2, Eye, Server, Link2 as LinkIconLucide, Users, ChevronRight, ShieldAlert, Tv, MousePointerClick, Gift, Palette, Youtube, Rocket, Coins, Gamepad2, ImagePlay, Cpu, Lock, Upload } from 'lucide-react';
 import { settingsCategories } from '@/config/nav'; // Import from config
 
 export default function AdminSettingsHubPage() {
@@ -33,6 +33,21 @@ export default function AdminSettingsHubPage() {
             </a>
           </Link>
         ))}
+        {/* Manually add Deployment Guide as it's a special case */}
+         <Link href="/admin/deployment-guide" legacyBehavior passHref>
+            <a className="block h-full">
+              <GlassCard interactive className="p-6 h-full flex flex-col hover:border-accent/50 transition-colors duration-200">
+                <div className="flex items-center mb-3">
+                  <Upload className="h-7 w-7 text-accent mr-4 shrink-0" />
+                  <h2 className="text-xl font-semibold text-foreground">Deployment Guide</h2>
+                </div>
+                <p className="text-sm text-muted-foreground flex-grow mb-4">Instructions to deploy your app to Vercel.</p>
+                <div className="flex justify-end items-center text-sm font-medium text-accent group-hover:text-accent/80">
+                  View Guide <ChevronRight className="h-4 w-4 ml-1 transition-transform group-hover:translate-x-1" />
+                </div>
+              </GlassCard>
+            </a>
+          </Link>
       </div>
       <GlassCard className="mt-8 p-6 border-l-4 border-blue-500 bg-blue-500/10">
         <div className="flex items-start">

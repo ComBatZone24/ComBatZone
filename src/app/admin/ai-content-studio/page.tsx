@@ -23,11 +23,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from '@/hooks/use-toast';
 import { Wand2, Loader2, Copy, Sparkles, Tags, Type, Image as ImageIcon, FileText, TrendingUp, Search, Clock, Users, BrainCircuit, RefreshCw, Coins, ArrowUp, ArrowDown, Minus } from 'lucide-react';
-import { generateSocialContent, type GenerateSocialContentOutput } from '@/ai/flows/generate-social-content-flow';
-import type { TrendingTopic } from '@/ai/flows/get-trending-topics-flow';
+import type { GenerateSocialContentOutput } from '@/ai/flows/generate-social-content-flow';
+import type { TrendingTopic, TrendingTopicsInput } from '@/ai/flows/get-trending-topics-flow';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTrendingTopics } from '@/ai/flows/get-trending-topics-flow';
 import { cn } from '@/lib/utils';
 
 const contentSchema = z.object({
@@ -68,10 +67,20 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
     const fetchTrends = useCallback(async (platform: Platform) => {
         setIsLoadingTrends(platform);
         try {
-            const result = await getTrendingTopics({ platform: platform as any });
+            const response = await fetch('/api/ai/trending-topics', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ platform: platform as TrendingTopicsInput['platform'] }),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || `Failed to fetch trends for ${platform}`);
+            }
+            const result = await response.json();
             setTrendingTopics(prev => ({ ...prev, [platform]: result.topics }));
         } catch (error: any) {
-            toast({ title: "Error Fetching Trends", description: `Could not load trends for ${platform}.`, variant: "destructive" });
+            console.error(`Error fetching trends for ${platform}:`, error);
+            toast({ title: "Error Fetching Trends", description: `Could not load trends for ${platform}. Please try refreshing.`, variant: "destructive" });
         } finally {
             setIsLoadingTrends(null);
         }
@@ -90,7 +99,6 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
 
     const platforms: Platform[] = ['Google', 'TikTok', 'Instagram', 'Facebook', 'X (Twitter)', 'Crypto'];
 
-    // Initial fetch for Google
     useEffect(() => {
         fetchTrends('Google');
     }, []);
@@ -229,11 +237,20 @@ export default function AiContentStudioPage() {
         setIsLoading(true);
         setGeneratedContent(null);
         try {
-            const result = await generateSocialContent(data);
+            const response = await fetch('/api/ai/content-studio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data),
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to generate content.');
+            }
+            const result = await response.json();
             setGeneratedContent(result);
             toast({ title: "Content Generated!", description: "AI has successfully created your content." });
         } catch (error: any) {
-            toast({ title: "Error", description: error.message || "Failed to generate content.", variant: "destructive" });
+            toast({ title: "Error", description: error.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -357,4 +374,3 @@ export default function AiContentStudioPage() {
         </div>
     );
 }
-
