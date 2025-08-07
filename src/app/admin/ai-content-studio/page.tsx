@@ -71,18 +71,7 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
     const fetchTrends = useCallback(async (platform: Platform) => {
         setIsLoadingTrends(platform);
         try {
-            const response = await fetch('/api/ai/trending-topics', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ platform: platform as TrendingTopicsInput['platform'] })
-            });
-    
-            if (!response.ok) {
-              const errorData = await response.json();
-              throw new Error(errorData.message || `API request failed with status ${response.status}`);
-            }
-
-            const result: TrendingTopicsOutput = await response.json();
+            const result: TrendingTopicsOutput = await getTrendingTopics({ platform: platform as TrendingTopicsInput['platform'] });
             setTrendingTopics(prev => ({ ...prev, [platform]: result.topics }));
 
         } catch (error: any) {
