@@ -14,6 +14,7 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
@@ -23,11 +24,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from '@/hooks/use-toast';
 import { Wand2, Loader2, Copy, Sparkles, Tags, Type, Image as ImageIcon, FileText, TrendingUp, Search, Clock, Users, BrainCircuit, RefreshCw, Coins, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { generateSocialContent } from '@/ai/flows/generate-social-content-flow';
 import type { GenerateSocialContentOutput } from '@/ai/flows/generate-social-content-flow';
-import type { TrendingTopic, TrendingTopicsInput } from '@/ai/flows/get-trending-topics-flow';
+import type { TrendingTopic, TrendingTopicsInput, TrendingTopicsOutput } from '@/ai/flows/get-trending-topics-flow';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from '@/lib/utils';
+import { getTrendingTopics } from '@/ai/flows/get-trending-topics-flow';
+
 
 const contentSchema = z.object({
   topic: z.string().min(3, "Topic must be at least 3 characters long."),
@@ -70,14 +74,17 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
             const response = await fetch('/api/ai/trending-topics', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ platform: platform as TrendingTopicsInput['platform'] }),
+              body: JSON.stringify({ platform: platform as TrendingTopicsInput['platform'] })
             });
+    
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || `Failed to fetch trends for ${platform}`);
+              const errorData = await response.json();
+              throw new Error(errorData.message || `API request failed with status ${response.status}`);
             }
-            const result = await response.json();
+
+            const result: TrendingTopicsOutput = await response.json();
             setTrendingTopics(prev => ({ ...prev, [platform]: result.topics }));
+
         } catch (error: any) {
             console.error(`Error fetching trends for ${platform}:`, error);
             toast({ title: "Error Fetching Trends", description: `Could not load trends for ${platform}. Please try refreshing.`, variant: "destructive" });
@@ -101,7 +108,7 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
 
     useEffect(() => {
         fetchTrends('Google');
-    }, []);
+    }, [fetchTrends]);
 
     const getSignalIcon = (signal: 'PUMP' | 'DUMP' | 'NEUTRAL' | undefined) => {
         switch (signal) {
@@ -118,9 +125,12 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
                 <TrendingUp className="text-accent"/> Trending Now
             </h3>
             <Tabs defaultValue="Google" className="w-full" onValueChange={(value) => fetchTrends(value as Platform)}>
-                <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6">
-                    {platforms.map(p => <TabsTrigger key={p} value={p}>{p}</TabsTrigger>)}
-                </TabsList>
+                 <ScrollArea className="w-full whitespace-nowrap rounded-md">
+                    <TabsList className="inline-flex h-auto p-1 bg-muted/50">
+                        {platforms.map(p => <TabsTrigger key={p} value={p}>{p}</TabsTrigger>)}
+                    </TabsList>
+                    <ScrollBar orientation="horizontal" />
+                </ScrollArea>
                  {platforms.map(p => (
                     <TabsContent key={p} value={p} className="mt-4">
                         <div className="flex gap-2 items-center mb-4">
@@ -163,7 +173,9 @@ const TrendingTopicsPanel = ({ onTopicSelect }: { onTopicSelect: (topic: string)
                                             className="flex items-start gap-3 p-3 bg-background/40 rounded-lg border border-border/30 hover:bg-accent/10 transition-colors cursor-pointer"
                                             onClick={() => { setSelectedTopic(topic); setIsDetailOpen(true); }}
                                         >
-                                            <span className={cn("text-lg font-bold", signalColor)}>{index + 1}</span>
+                                            <div className="flex items-center justify-center h-8 w-8 rounded-full bg-muted flex-shrink-0">
+                                                <span className={cn("text-md font-bold", signalColor)}>{p === 'Crypto' ? getSignalIcon(topic.signal) : index + 1}</span>
+                                            </div>
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold text-foreground truncate">{topic.topic}</p>
                                                 <p className="text-xs text-muted-foreground truncate">{topic.reason}</p>
@@ -237,16 +249,7 @@ export default function AiContentStudioPage() {
         setIsLoading(true);
         setGeneratedContent(null);
         try {
-            const response = await fetch('/api/ai/content-studio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data),
-            });
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'Failed to generate content.');
-            }
-            const result = await response.json();
+            const result = await generateSocialContent(data);
             setGeneratedContent(result);
             toast({ title: "Content Generated!", description: "AI has successfully created your content." });
         } catch (error: any) {
