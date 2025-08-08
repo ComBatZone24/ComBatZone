@@ -12,8 +12,10 @@ import DailyRewardManager from '@/components/rewards/DailyRewardManager';
 import { FloatingChatProvider } from '@/context/FloatingChatContext';
 import { AdProvider } from '@/context/AdContext';
 import { SettingsProvider } from '@/context/SettingsContext';
-import { UpdateProvider } from '@/context/UpdateContext'; // Import UpdateProvider
+import { UpdateProvider } from '@/context/UpdateContext';
 import LinkvertiseScript from '@/components/core/LinkvertiseScript';
+import { MiningProvider } from '@/context/MiningContext';
+import CpuMiningDialog from '@/components/games/CpuMiningDialog';
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -140,11 +142,14 @@ export default function RootLayout({
             <SettingsProvider>
               <UpdateProvider>
                 <AdProvider>
-                  <FloatingChatProvider>
-                      <AppShell>
-                        {children}
-                      </AppShell>
-                  </FloatingChatProvider>
+                  <MiningProvider>
+                    <FloatingChatProvider>
+                        <AppShell>
+                          {children}
+                        </AppShell>
+                        <CpuMiningDialog />
+                    </FloatingChatProvider>
+                  </MiningProvider>
                 </AdProvider>
               </UpdateProvider>
             </SettingsProvider>

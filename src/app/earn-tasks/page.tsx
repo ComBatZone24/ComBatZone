@@ -18,6 +18,7 @@ import YoutubePromotionTask from '@/components/youtube/YoutubePromotionTask';
 import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Separator } from '@/components/ui/separator';
 import ClickAndEarnComponent from '@/components/youtube/ClickAndEarnList';
+import { useMining } from '@/context/MiningContext'; // Import the new context hook
 
 const FeyorraTaskCard = ({ user, feyorraReferralUrl, feyorraLogoUrl }: { user: any, feyorraReferralUrl: string, feyorraLogoUrl: string}) => {
     const handleStartTask = () => {
@@ -91,9 +92,7 @@ const LiveStreamSection = ({ settings }: { settings: NonNullable<GlobalSettings[
 };
 
 const CpuMiningCard = () => {
-    const handleStartMining = () => {
-        window.open('/mintme-miner.html', '_blank', 'noopener,noreferrer,width=400,height=600');
-    };
+    const { openMiner } = useMining();
     return (
         <GlassCard className="text-center p-6 md:p-8 space-y-6">
             <Cpu className="mx-auto h-16 w-16 text-accent" />
@@ -102,7 +101,7 @@ const CpuMiningCard = () => {
                 Use your device's spare processing power to earn MINTME coins. Ideal for when your device is idle or charging.
             </p>
              <Button
-                onClick={handleStartMining}
+                onClick={openMiner}
                 className="w-full max-w-sm text-md md:text-lg py-4 md:py-6 neon-accent-bg rounded-lg shadow-lg hover:shadow-accent/50 transition-all duration-300 transform hover:scale-105"
             >
                 <Cpu className="mr-2 h-5 w-5"/> Start Mining
