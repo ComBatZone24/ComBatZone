@@ -390,6 +390,7 @@ export interface StepAndEarnSettings {
 
 export interface AppUpdateSettings {
     latestVersionCode: number;
+    latestVersionName: string; // Added for human-readable version
     apkUrl: string;
     forceUpdate: boolean;
     updateMessage: string;

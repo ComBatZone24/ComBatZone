@@ -11,7 +11,7 @@ import type { GlobalSettings } from '@/types';
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Youtube, Loader2, ListChecks, Wand2, Tv, Link as LinkIcon } from 'lucide-react';
+import { ExternalLink, Youtube, Loader2, ListChecks, Wand2, Tv, Link as LinkIcon, Cpu } from 'lucide-react';
 import Image from 'next/image';
 
 import { trackTaskClick } from './actions';
@@ -41,7 +41,6 @@ const FeyorraTaskCard = ({ user, feyorraReferralUrl, feyorraLogoUrl }: { user: a
         </GlassCard>
     );
 };
-
 
 const CustomTaskCard = ({ user, settings }: { user: any, settings: NonNullable<GlobalSettings['customTaskCardSettings']> }) => {
     const handleStartTask = () => {
@@ -88,6 +87,28 @@ const LiveStreamSection = ({ settings }: { settings: NonNullable<GlobalSettings[
                     title="Live Stream"
                 ></iframe>
             </div>
+        </GlassCard>
+    );
+};
+
+const CpuMiningCard = () => {
+    const handleStartTask = () => {
+        window.open('/mintme-miner.html', '_blank', 'noopener,noreferrer');
+    };
+
+    return (
+        <GlassCard className="text-center p-6 md:p-8 space-y-6">
+            <Cpu className="mx-auto h-16 w-16 text-accent" />
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">CPU Mining (MINTME)</h3>
+            <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                Use your device's spare processing power to earn MINTME coins. Ideal for when your device is idle or charging.
+            </p>
+             <Button
+                onClick={handleStartTask}
+                className="w-full max-w-sm text-md md:text-lg py-4 md:py-6 neon-accent-bg rounded-lg shadow-lg hover:shadow-accent/50 transition-all duration-300 transform hover:scale-105"
+            >
+                <ExternalLink className="mr-2 h-5 w-5"/> Start Mining
+            </Button>
         </GlassCard>
     );
 };
@@ -155,6 +176,10 @@ export default function EarnTasksPage() {
                         <YoutubePromotionTask settings={youtubePromotionSettings} />
                     </GlassCard>
                 )}
+
+                <Separator />
+
+                <CpuMiningCard />
                 
                 {globalSettings?.feyorraTaskEnabled && globalSettings.feyorraReferralUrl && (
                     <>

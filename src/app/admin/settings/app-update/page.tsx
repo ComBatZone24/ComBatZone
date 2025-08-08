@@ -22,7 +22,8 @@ import { ArrowLeft, Loader2, Save, ArrowUpCircle, AlertCircle } from 'lucide-rea
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const updateSettingsSchema = z.object({
-  latestVersionCode: z.coerce.number().int().min(1, "Version code must be at least 1."),
+  latestVersionCode: z.coerce.number().int().min(1, "Version code must be a positive integer."),
+  latestVersionName: z.string().min(3, "Version name is required (e.g., 1.0.0)."),
   apkUrl: z.string().url("Please enter a valid URL."),
   forceUpdate: z.boolean(),
   updateMessage: z.string().min(10, "Update message is required."),
@@ -32,6 +33,7 @@ type UpdateSettingsFormValues = z.infer<typeof updateSettingsSchema>;
 
 const defaultValues: UpdateSettingsFormValues = {
   latestVersionCode: 1,
+  latestVersionName: "1.0.0",
   apkUrl: '',
   forceUpdate: true,
   updateMessage: 'A new version of the app is available. Please update to continue enjoying the latest features and security improvements.',
@@ -57,7 +59,7 @@ export default function AdminAppUpdatePage() {
       const settingsRef = ref(database, 'globalSettings/appUpdate');
       const snapshot = await get(settingsRef);
       if (snapshot.exists()) {
-        form.reset(snapshot.val());
+        form.reset({ ...defaultValues, ...snapshot.val()});
       }
     } catch (error) {
       console.error("Error fetching app update settings:", error);
@@ -76,7 +78,6 @@ export default function AdminAppUpdatePage() {
     setIsSaving(true);
     
     try {
-      // Convert Google Drive link to direct download link before saving
       const directDownloadUrl = createDirectGoogleDriveDownloadLink(data.apkUrl);
       
       const settingsToSave: AppUpdateSettings = {
@@ -116,13 +117,22 @@ export default function AdminAppUpdatePage() {
 
       <GlassCard>
         <div className="space-y-6 p-6">
-          <Controller
-            control={form.control} name="latestVersionCode"
-            render={({ field }) => (
-              <div><Label htmlFor="versionCode">Latest Version Code</Label><Input id="versionCode" type="number" placeholder="e.g., 2" {...field} className="mt-1 bg-input/50" />
-              {form.formState.errors.latestVersionCode && <p className="text-destructive text-sm mt-1">{form.formState.errors.latestVersionCode.message}</p>}</div>
-            )}
-          />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Controller
+                    control={form.control} name="latestVersionName"
+                    render={({ field }) => (
+                    <div><Label htmlFor="versionName">Latest Version Name</Label><Input id="versionName" placeholder="e.g., 1.0.0" {...field} className="mt-1 bg-input/50" />
+                    {form.formState.errors.latestVersionName && <p className="text-destructive text-sm mt-1">{form.formState.errors.latestVersionName.message}</p>}</div>
+                    )}
+                />
+                 <Controller
+                    control={form.control} name="latestVersionCode"
+                    render={({ field }) => (
+                    <div><Label htmlFor="versionCode">Latest Version Code</Label><Input id="versionCode" type="number" placeholder="e.g., 9" {...field} className="mt-1 bg-input/50" />
+                    {form.formState.errors.latestVersionCode && <p className="text-destructive text-sm mt-1">{form.formState.errors.latestVersionCode.message}</p>}</div>
+                    )}
+                />
+            </div>
           <Controller
             control={form.control} name="apkUrl"
             render={({ field }) => (
