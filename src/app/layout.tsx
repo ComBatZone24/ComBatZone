@@ -141,18 +141,16 @@ export default function RootLayout({
               <UpdateProvider>
                 <AdProvider>
                   <FloatingChatProvider>
-                    <AppShell>
-                      {children}
-                    </AppShell>
+                      <AppShell>
+                        {children}
+                      </AppShell>
                   </FloatingChatProvider>
-                  <Toaster />
-                  <PromotionalDialog />
-                  <DailyRewardManager />
                 </AdProvider>
               </UpdateProvider>
             </SettingsProvider>
           </AuthProvider>
         </FirebaseInitializer>
+        <Toaster />
         <LinkvertiseScript />
       </body>
     </html>

@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -92,10 +91,9 @@ const LiveStreamSection = ({ settings }: { settings: NonNullable<GlobalSettings[
 };
 
 const CpuMiningCard = () => {
-    const handleStartTask = () => {
-        window.open('/mintme-miner.html', '_blank', 'noopener,noreferrer');
+    const handleStartMining = () => {
+        window.open('/mintme-miner.html', '_blank', 'noopener,noreferrer,width=400,height=600');
     };
-
     return (
         <GlassCard className="text-center p-6 md:p-8 space-y-6">
             <Cpu className="mx-auto h-16 w-16 text-accent" />
@@ -104,10 +102,10 @@ const CpuMiningCard = () => {
                 Use your device's spare processing power to earn MINTME coins. Ideal for when your device is idle or charging.
             </p>
              <Button
-                onClick={handleStartTask}
+                onClick={handleStartMining}
                 className="w-full max-w-sm text-md md:text-lg py-4 md:py-6 neon-accent-bg rounded-lg shadow-lg hover:shadow-accent/50 transition-all duration-300 transform hover:scale-105"
             >
-                <ExternalLink className="mr-2 h-5 w-5"/> Start Mining
+                <Cpu className="mr-2 h-5 w-5"/> Start Mining
             </Button>
         </GlassCard>
     );

