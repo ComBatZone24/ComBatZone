@@ -46,7 +46,7 @@ export default function CpuMiningDialog() {
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={toggleMinimize} title="Minimize">
               <Minimize className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={stopMining} title="Stop Mining & Close">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={closeMiner} title="Stop Mining & Close">
               <X className="h-4 w-4" />
             </Button>
           </div>
