@@ -134,7 +134,7 @@ export const adminNavItems: NavItem[] = [
     href: '/admin/ai-content-studio',
     icon: Wand2,
     description: 'Generate SEO-optimized content for social media platforms using AI.',
-    permissionKey: 'settings', // Re-use settings permission for simplicity
+    permissionKey: 'aiContentStudio',
   },
   {
     title: 'Task Analysis',
@@ -162,7 +162,7 @@ export const adminNavItems: NavItem[] = [
     href: '/admin/redeem-code-analysis',
     icon: Ticket,
     description: 'Track redeem code creation and usage by delegates.',
-    permissionKey: 'coupons', 
+    permissionKey: 'redeemCodeAnalysis', 
   },
   {
     title: 'Tournament Analysis',
@@ -309,7 +309,7 @@ export const adminNavItems: NavItem[] = [
     href: '/admin/deployment-guide',
     icon: Upload,
     description: 'Instructions on how to deploy your app outside of Firebase Studio.',
-    permissionKey: 'settings', // Re-use settings permission
+    permissionKey: 'deploymentGuide',
   },
 ];
 

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 
@@ -56,7 +56,10 @@ type DelegateMap = Record<string, DelegateAccessInfo>;
 const delegateSchema = z.object({
   targetUserEmail: z.string().email("Please enter a valid email address."),
   whatsappNumber: z.string().optional(),
-  accessScreens: z.record(z.boolean()).optional(),
+  accessScreens: z.record(z.boolean()).optional().refine(
+    (screens) => !screens || Object.values(screens).some(v => v === true),
+    { message: "At least one screen must be selected for a delegate." }
+  ),
 });
 type DelegateFormValues = z.infer<typeof delegateSchema>;
 
@@ -258,11 +261,11 @@ export default function ManageDelegatesPage() {
         acc[screen.id] = true;
         return acc;
       }, {} as Record<string, boolean>);
-      formContext.setValue('accessScreens', allScreens);
+      formContext.setValue('accessScreens', allScreens, { shouldDirty: true, shouldValidate: true });
     };
 
     const handleClearAll = () => {
-      formContext.setValue('accessScreens', {});
+      formContext.setValue('accessScreens', {}, { shouldDirty: true, shouldValidate: true });
     };
 
     return (
@@ -279,7 +282,7 @@ export default function ManageDelegatesPage() {
         <FormField
           control={formContext.control}
           name="accessScreens"
-          render={() => (
+          render={({ fieldState }) => (
             <FormItem>
               <div className="mb-2">
                 <FormLabel className="text-md font-medium">Screen Access Permissions</FormLabel>
@@ -301,7 +304,7 @@ export default function ManageDelegatesPage() {
                       render={({ field }) => (
                          <FormItem className="flex flex-row items-start space-x-3 space-y-0">
                           <FormControl>
-                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                            <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
                           </FormControl>
                           <FormLabel className="font-normal text-sm">{screen.label}</FormLabel>
                         </FormItem>
@@ -310,14 +313,14 @@ export default function ManageDelegatesPage() {
                   ))}
                 </div>
               </ScrollArea>
-              <FormMessage />
+              {fieldState.error && <FormMessage>{fieldState.error.message}</FormMessage>}
             </FormItem>
           )}
         />
         
         <DialogFooter>
           <DialogClose asChild><Button type="button" variant="outline" onClick={isEditMode ? handleCloseEditDialog : handleCloseCreateDialog} disabled={isSubmitting}>Cancel</Button></DialogClose>
-          <Button type="submit" className="neon-accent-bg" disabled={isSubmitting}>
+          <Button type="submit" className="neon-accent-bg" disabled={isSubmitting || !form.formState.isValid}>
             {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
             {isEditMode ? 'Save Changes' : 'Assign Delegate'}
           </Button>
