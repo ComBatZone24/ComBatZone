@@ -45,7 +45,8 @@ export interface User {
     date: string; // YYYY-MM-DD
     clickCount: number;
     batchCooldownUntil?: number; // Timestamp
-  }
+  };
+  cpuMiningEarnedCoins?: number;
 }
 
 export interface Tournament {
@@ -406,6 +407,21 @@ export interface CpaGripSettings {
   requiredCompletions: number; // New
 }
 
+export interface CpuMiningSettings {
+  enabled: boolean;
+  throttle: number; // 0 to 99
+  coinsPer1MHashes: number; // New field for earning rate
+  cardTitle: string;
+  cardDescription: string;
+  viewStatsButtonText: string;
+  dialogTitle: string;
+  dialogDescription: string;
+  coinsEarnedLabel: string;
+  startMiningButtonText: string;
+  stopMiningButtonText: string;
+}
+
+
 export interface GlobalSettings {
   appName: string;
   appLogoUrl: string;
@@ -521,6 +537,7 @@ export interface GlobalSettings {
   tokenSettings?: TokenSettings;
   adsterraSettings?: AdsterraSettings;
   cpaGripSettings?: CpaGripSettings;
+  cpuMiningSettings?: CpuMiningSettings;
   scrollingBanners?: Record<string, PromoPost>; // For the new feature
   timebucksTaskSettings?: {
       enabled: boolean;

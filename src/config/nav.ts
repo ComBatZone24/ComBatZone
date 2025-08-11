@@ -1,4 +1,5 @@
 
+
 import {
   Home,
   Wallet,
@@ -134,7 +135,7 @@ export const adminNavItems: NavItem[] = [
     href: '/admin/ai-content-studio',
     icon: Wand2,
     description: 'Generate SEO-optimized content for social media platforms using AI.',
-    permissionKey: 'aiContentStudio',
+    permissionKey: 'settings', // Re-use settings permission for simplicity
   },
   {
     title: 'Task Analysis',
@@ -162,7 +163,7 @@ export const adminNavItems: NavItem[] = [
     href: '/admin/redeem-code-analysis',
     icon: Ticket,
     description: 'Track redeem code creation and usage by delegates.',
-    permissionKey: 'redeemCodeAnalysis', 
+    permissionKey: 'coupons', 
   },
   {
     title: 'Tournament Analysis',
@@ -309,7 +310,7 @@ export const adminNavItems: NavItem[] = [
     href: '/admin/deployment-guide',
     icon: Upload,
     description: 'Instructions on how to deploy your app outside of Firebase Studio.',
-    permissionKey: 'deploymentGuide',
+    permissionKey: 'settings', // Re-use settings permission
   },
 ];
 
@@ -337,6 +338,12 @@ export const settingsCategories = [
     href: '/admin/settings/games',
     icon: Gamepad2,
     description: 'Enable/disable betting games like Duels & Spin Wheel.',
+  },
+  {
+    title: 'CPU Mining',
+    href: '/admin/settings/mining',
+    icon: Cpu,
+    description: 'Configure CPU mining feature, throttle, and text.',
   },
   {
     title: 'Crypto Token',

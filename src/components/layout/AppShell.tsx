@@ -12,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
 import FloatingChatWindow from '../tournaments/FloatingChatWindow';
 import NotificationBell from '../notifications/NotificationBell';
 import PullToRefresh from '../core/pull-to-refresh';
+import CpuMiningDialog from '../games/CpuMiningDialog'; // Import the dialog
 
 const AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/forgot-password'];
 const ADMIN_PATHS = ['/admin'];
@@ -69,6 +70,8 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       )}
       
       <FloatingChatWindow />
+      {/* Render the mining dialog here so it's part of the main app shell */}
+      <CpuMiningDialog />
     </div>
   );
 };
