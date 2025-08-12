@@ -1,5 +1,4 @@
 
-
 export interface User {
   id: string;
   username: string;
@@ -441,6 +440,8 @@ export interface GlobalSettings {
   mobileLoadEnabled?: boolean; // New setting for mobile load
   shopEnabled?: boolean; // New setting for the shop
   dailyUserLimit?: number;
+  onesignalAppId?: string; // New for OneSignal
+  onesignalApiKey?: string; // New for OneSignal
   admobRewardedAdUnitId?: string;
   
   // Daily Ad Task settings

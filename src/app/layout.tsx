@@ -128,6 +128,19 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <head>
+        {/* OneSignal SDK */}
+        <Script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer />
+        <Script id="onesignal-init">
+          {`
+            window.OneSignalDeferred = window.OneSignalDeferred || [];
+            OneSignalDeferred.push(function(OneSignal) {
+              OneSignal.init({
+                appId: "4d8cc101-3039-4f39-a9f9-1e0d2aa680f7",
+              });
+            });
+          `}
+        </Script>
+        
          <Script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8948652329924345"

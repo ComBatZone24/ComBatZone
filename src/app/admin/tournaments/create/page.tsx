@@ -19,7 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Tournament } from '@/types';
 import { database, auth } from '@/lib/firebase/config';
-import { ref, push } from 'firebase/database';
+import { ref, push, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { generateEventNotification } from '@/ai/flows/generate-event-notification-flow';
@@ -208,9 +208,16 @@ export default function CreateTournamentPage() {
           });
           
           if(aiResponse.heading && aiResponse.content) {
+             // 1. Send In-App broadcast for everyone
+             await push(ref(database, 'adminMessages'), {
+                 text: `${aiResponse.heading}: ${aiResponse.content}`,
+                 timestamp: rtdbServerTimestamp(),
+             });
+
+             // 2. Send OneSignal Push Notification for subscribers
              const pushResult = await sendGlobalNotification(aiResponse.heading, aiResponse.content);
              if (pushResult.success) {
-                 toast({ title: "Notification Sent!", description: pushResult.message });
+                 toast({ title: "Notification Sent!", description: `In-app and push notifications sent. ${pushResult.message}` });
              } else {
                  throw new Error(pushResult.message);
              }
@@ -293,3 +300,4 @@ export default function CreateTournamentPage() {
     </div>
   );
 }
+

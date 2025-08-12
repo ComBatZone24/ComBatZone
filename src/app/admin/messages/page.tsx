@@ -3,8 +3,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { database } from '@/lib/firebase/config';
-import { ref, onValue, off, push, serverTimestamp, remove, query, get, update } from 'firebase/database';
-import { Loader2, Trash2, Send, Users, User, AlertCircle } from 'lucide-react';
+import { ref, onValue, off, push, serverTimestamp, remove, query, get, update, orderByChild, equalTo } from 'firebase/database';
+import { Loader2, Trash2, Send, Users, User, AlertCircle, MessageSquare, BellRing } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,9 +37,16 @@ interface AdminMessage {
 export default function AdminMessagesPage() {
   const [messages, setMessages] = useState<AdminMessage[]>([]);
   const [loading, setLoading] = useState(true);
-  const [newMessageText, setNewMessageText] = useState('');
-  const [isSendingBroadcast, setIsSendingBroadcast] = useState(false);
   
+  // State for In-App Broadcast
+  const [inAppBroadcastText, setInAppBroadcastText] = useState('');
+  const [isSendingInApp, setIsSendingInApp] = useState(false);
+  
+  // State for Global Push
+  const [globalPushText, setGlobalPushText] = useState('');
+  const [isSendingPush, setIsSendingPush] = useState(false);
+  
+  // State for Direct Message
   const [targetUserIdentifier, setTargetUserIdentifier] = useState('');
   const [directMessageText, setDirectMessageText] = useState('');
   const [isSendingDirect, setIsSendingDirect] = useState(false);
@@ -84,34 +91,50 @@ export default function AdminMessagesPage() {
     return () => off(messagesRef, 'value', listener);
   }, [toast]);
   
-  const handleSendBroadcast = async (e: React.FormEvent) => {
+  const handleSendInAppBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessageText.trim()) return;
-    setIsSendingBroadcast(true);
-
+    if (!inAppBroadcastText.trim()) return;
+    setIsSendingInApp(true);
     try {
-        const result = await sendGlobalNotification("New Message from Admin", newMessageText);
+      if (!database) throw new Error("Firebase not available.");
+      await push(ref(database, 'adminMessages'), {
+          text: inAppBroadcastText,
+          timestamp: serverTimestamp(),
+      });
+      setInAppBroadcastText(''); 
+      toast({ title: "In-App Broadcast Sent", description: "Your message is now visible to all users in their notifications.", className: "bg-green-500/20 text-green-300 border-green-500/30" });
+    } catch (error: any) {
+      toast({ title: "Error", description: `Failed to send broadcast: ${error.message}`, variant: "destructive" });
+    } finally {
+      setIsSendingInApp(false);
+    }
+  };
 
+  const handleSendPushNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!globalPushText.trim()) return;
+    setIsSendingPush(true);
+    try {
+        const result = await sendGlobalNotification("New Message from Admin", globalPushText);
         if (result.success) {
-             if (!database) return;
-            // The redundant "[Broadcast]" prefix has been removed from here.
-            await push(ref(database, 'adminMessages'), {
-                text: newMessageText,
-                timestamp: serverTimestamp(),
-            });
-            setNewMessageText(''); 
-            toast({ title: "Broadcast Sent", description: result.message, variant: "default", className: "bg-green-500/20 text-green-300 border-green-500/30" });
+            if (database) {
+              await push(ref(database, 'adminMessages'), {
+                  text: `[PUSH] ${globalPushText}`, // Prefix to distinguish in log
+                  timestamp: serverTimestamp(),
+              });
+            }
+            setGlobalPushText(''); 
+            toast({ title: "Push Notification Sent", description: result.message, className: "bg-green-500/20 text-green-300 border-green-500/30" });
         } else {
             throw new Error(result.message);
         }
     } catch (error: any) {
-        console.error("Error sending broadcast:", error);
-        toast({ title: "Error", description: `Failed to send broadcast: ${error.message}`, variant: "destructive" });
+        toast({ title: "Error", description: `Failed to send push notification: ${error.message}`, variant: "destructive" });
     } finally {
-        setIsSendingBroadcast(false);
+      setIsSendingPush(false);
     }
   };
-  
+
   const handleSendDirect = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!targetUserIdentifier.trim() || !directMessageText.trim() || !database) {
@@ -202,28 +225,41 @@ export default function AdminMessagesPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <GlassCard>
-              <Tabs defaultValue="broadcast" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="broadcast"><Users className="mr-2 h-4 w-4"/>Broadcast</TabsTrigger>
+              <Tabs defaultValue="broadcast_in_app" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="broadcast_in_app"><MessageSquare className="mr-2 h-4 w-4"/>Broadcast (In-App)</TabsTrigger>
+                  <TabsTrigger value="broadcast_push"><BellRing className="mr-2 h-4 w-4"/>Global (Push)</TabsTrigger>
                   <TabsTrigger value="direct"><User className="mr-2 h-4 w-4"/>Direct Message</TabsTrigger>
               </TabsList>
-              <TabsContent value="broadcast" className="pt-4">
-                  <form onSubmit={handleSendBroadcast} className="flex flex-col space-y-4">
+              <TabsContent value="broadcast_in_app" className="pt-4">
+                  <form onSubmit={handleSendInAppBroadcast} className="flex flex-col space-y-4">
                       <Textarea
                           className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
                           rows={6}
-                          placeholder="Type your message to all users here..."
-                          value={newMessageText}
-                          onChange={(e) => setNewMessageText(e.target.value)}
+                          placeholder="This message will appear in every user's notification bell inside the app."
+                          value={inAppBroadcastText}
+                          onChange={(e) => setInAppBroadcastText(e.target.value)}
                           required
                       />
-                      <Button
-                          type="submit"
-                          className="w-full neon-accent-bg"
-                          disabled={!newMessageText.trim() || isSendingBroadcast}
-                      >
-                          {isSendingBroadcast ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
-                          Send to Everyone
+                      <Button type="submit" className="w-full neon-accent-bg" disabled={!inAppBroadcastText.trim() || isSendingInApp}>
+                          {isSendingInApp ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
+                          Send to All Users (In-App)
+                      </Button>
+                  </form>
+              </TabsContent>
+              <TabsContent value="broadcast_push" className="pt-4">
+                  <form onSubmit={handleSendPushNotification} className="flex flex-col space-y-4">
+                      <Textarea
+                          className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
+                          rows={6}
+                          placeholder="This will send a PUSH NOTIFICATION to all subscribed users via OneSignal."
+                          value={globalPushText}
+                          onChange={(e) => setGlobalPushText(e.target.value)}
+                          required
+                      />
+                      <Button type="submit" className="w-full neon-accent-bg" disabled={!globalPushText.trim() || isSendingPush}>
+                          {isSendingPush ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Send className="mr-2 h-4 w-4"/>}
+                          Send Push to All Subscribers
                       </Button>
                   </form>
               </TabsContent>
@@ -239,7 +275,7 @@ export default function AdminMessagesPage() {
                       <Textarea
                           className="w-full p-3 rounded-md border border-border/60 bg-background/40 text-foreground focus:outline-none focus:ring-2 focus:ring-accent min-h-[150px]"
                           rows={6}
-                          placeholder="Type your direct message here..."
+                          placeholder="Type your private message to this user here..."
                           value={directMessageText}
                           onChange={(e) => setDirectMessageText(e.target.value)}
                           required
@@ -314,7 +350,9 @@ export default function AdminMessagesPage() {
           <AlertCircle className="h-5 w-5 !text-primary" />
           <AlertTitle className="!text-primary">Important</AlertTitle>
           <AlertDescription className="!text-primary/80 text-sm">
-            Broadcast messages will attempt to send a Push Notification and are also logged here. Direct messages are private to the user but are also logged here for your reference.
+            - **In-App Broadcasts** appear in every user's notification bell.<br/>
+            - **Global Push** sends a OneSignal notification to subscribed devices.<br/>
+            - **Direct Messages** are sent privately to a single user. All messages are logged here for your reference.
           </AlertDescription>
         </Alert>
       </div>
