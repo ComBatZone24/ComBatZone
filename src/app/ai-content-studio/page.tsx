@@ -15,6 +15,9 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
+
 
 import PageTitle from '@/components/core/page-title';
 import GlassCard from '@/components/core/glass-card';
@@ -23,7 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from '@/hooks/use-toast';
-import { Wand2, Loader2, Copy, Sparkles, Tags, Type, Image as ImageIcon, FileText, TrendingUp, Search, Clock, Users, BrainCircuit, RefreshCw, Coins, ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { Wand2, Loader2, Copy, Sparkles, Tags, Type, Image as ImageIcon, FileText, TrendingUp, Search, Clock, Users, BrainCircuit, RefreshCw, Coins, ArrowUp, ArrowDown, Minus, MessageSquareText } from 'lucide-react';
 import { generateSocialContent } from '@/ai/flows/generate-social-content-flow';
 import type { GenerateSocialContentOutput } from '@/ai/flows/generate-social-content-flow';
 import type { TrendingTopic, TrendingTopicsInput, TrendingTopicsOutput } from '@/ai/flows/get-trending-topics-flow';
@@ -40,8 +43,52 @@ const contentSchema = z.object({
 
 type ContentFormValues = z.infer<typeof contentSchema>;
 type Platform = z.infer<typeof contentSchema.shape.platform.Values> | 'Crypto';
+type RankedItem = { value: string; rank: number; audienceReachPercentage: number; };
 
-const ResultCard = ({ title, icon: Icon, children, onCopy, hasContent }: { title: string, icon: React.ElementType, children: React.ReactNode, onCopy: () => void, hasContent: boolean }) => (
+
+const RankedResultTable = ({ title, icon: Icon, items, onCopyAll }: { title: string, icon: React.ElementType, items: RankedItem[], onCopyAll: () => void }) => {
+    if (!items || items.length === 0) return null;
+    return (
+        <GlassCard className="p-4 bg-card/80 flex flex-col">
+            <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold text-muted-foreground flex items-center gap-2">
+                    <Icon className="h-5 w-5 text-accent"/>
+                    {title}
+                </h4>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCopyAll}>
+                    <Copy className="mr-2 h-3.5"/> Copy All
+                </Button>
+            </div>
+            <ScrollArea className="h-64">
+                 <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[50px]">Rank</TableHead>
+                            <TableHead>Content</TableHead>
+                            <TableHead className="w-[120px] text-right">Reach</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {items.map(item => (
+                            <TableRow key={item.rank}>
+                                <TableCell className="font-bold text-lg text-accent text-center">{item.rank}</TableCell>
+                                <TableCell className="font-medium text-foreground whitespace-pre-wrap">{item.value}</TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex items-center gap-2 justify-end">
+                                      <span className="font-mono text-sm">{item.audienceReachPercentage.toFixed(1)}%</span>
+                                      <Progress value={item.audienceReachPercentage} className="w-16 h-1.5" indicatorClassName="bg-accent" />
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </ScrollArea>
+        </GlassCard>
+    );
+};
+
+const SimpleResultCard = ({ title, icon: Icon, children, onCopy, hasContent }: { title: string, icon: React.ElementType, children: React.ReactNode, onCopy: () => void, hasContent: boolean }) => (
     <GlassCard className="p-4 bg-card/80 flex flex-col">
         <div className="flex justify-between items-center mb-2">
             <h4 className="font-semibold text-muted-foreground flex items-center gap-2">
@@ -254,6 +301,11 @@ export default function AiContentStudioPage() {
         toast({ description: "Copied to clipboard!" });
     };
 
+    const handleCopyRankedItems = (items: RankedItem[]) => {
+        const textToCopy = items.map(item => item.value).join('\n\n');
+        handleCopy(textToCopy);
+    };
+
     const handleTopicSelect = (topic: string) => {
         form.setValue('topic', topic);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -264,7 +316,7 @@ export default function AiContentStudioPage() {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-8 container mx-auto py-8">
             <PageTitle
                 title="AI Content & SEO Studio"
                 subtitle="Generate trending titles, descriptions, and tags for your social media and website."
@@ -327,30 +379,25 @@ export default function AiContentStudioPage() {
                      >
                         <Separator />
                         <GlassCard className="mt-8">
-                            <h3 className="text-xl font-semibold mb-4 text-foreground">Generated Content</h3>
+                             <h3 className="text-xl font-semibold mb-4 text-foreground">Generated Content</h3>
                             {isLoading ? (
                                 <div className="flex justify-center items-center h-48">
                                     <Loader2 className="h-8 w-8 animate-spin text-accent"/>
                                 </div>
                             ) : generatedContent && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                     <ResultCard title="Title" icon={Type} onCopy={() => handleCopy(generatedContent.title)} hasContent={!!generatedContent.title}>
-                                        <p>{generatedContent.title}</p>
-                                    </ResultCard>
-                                    <ResultCard title="Tags / Keywords" icon={Tags} onCopy={() => handleCopy(generatedContent.tags)} hasContent={generatedContent.tags.length > 0}>
-                                        <div className="flex flex-wrap gap-2">
-                                            {generatedContent.tags.map((tag, i) => <span key={i} className="bg-muted px-2 py-1 rounded-md text-muted-foreground">{tag}</span>)}
-                                        </div>
-                                    </ResultCard>
-                                    <div className="md:col-span-2">
-                                         <ResultCard title="Description" icon={FileText} onCopy={() => handleCopy(generatedContent.description)} hasContent={!!generatedContent.description}>
-                                            <p className="whitespace-pre-wrap">{generatedContent.description}</p>
-                                        </ResultCard>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                    <RankedResultTable title="Titles" icon={Type} items={generatedContent.titles} onCopyAll={() => handleCopyRankedItems(generatedContent.titles)} />
+                                    <RankedResultTable title="Descriptions" icon={FileText} items={generatedContent.descriptions} onCopyAll={() => handleCopyRankedItems(generatedContent.descriptions)} />
+                                    <div className="lg:col-span-2">
+                                       <RankedResultTable title="Tags / Keywords" icon={Tags} items={generatedContent.tags} onCopyAll={() => handleCopyRankedItems(generatedContent.tags)} />
                                     </div>
-                                    <div className="md:col-span-2">
-                                         <ResultCard title="AI Image Prompt" icon={ImageIcon} onCopy={() => handleCopy(generatedContent.imagePrompt)} hasContent={!!generatedContent.imagePrompt}>
+                                    <div className="lg:col-span-2">
+                                       <RankedResultTable title="Scripts" icon={MessageSquareText} items={generatedContent.scripts} onCopyAll={() => handleCopyRankedItems(generatedContent.scripts)} />
+                                    </div>
+                                    <div className="lg:col-span-2">
+                                         <SimpleResultCard title="AI Image Prompt" icon={ImageIcon} onCopy={() => handleCopy(generatedContent.imagePrompt)} hasContent={!!generatedContent.imagePrompt}>
                                             <p className="italic">{generatedContent.imagePrompt}</p>
-                                        </ResultCard>
+                                        </SimpleResultCard>
                                     </div>
                                 </div>
                             )}

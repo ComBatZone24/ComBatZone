@@ -3,7 +3,7 @@
 "use client";
 
 import { motion, useDragControls } from 'framer-motion';
-import { Pin, PinOff, X, Cpu, Minimize2, Maximize2 } from 'lucide-react';
+import { Pin, PinOff, X, Cpu, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import GlassCard from '@/components/core/glass-card';
 import { useMining } from '@/context/MiningContext';
@@ -20,16 +20,18 @@ const StatDisplay: React.FC<{ label: string; value: string | number; className?:
 export default function CpuMiningDialog() {
   const {
     isMinerOpen, closeMiner, startMining, stopMining,
-    isMining, stats, coinsEarned, isPinned, togglePinned,
-    isMinimized, toggleMinimized,
+    isMining, stats, coinsEarnedThisSession, totalCoinsMined,
+    isPinned, togglePinned,
     position, setPosition, settings,
   } = useMining();
   
   const dragControls = useDragControls();
 
-  if (!isMinerOpen || isMinimized) {
+  if (!isMinerOpen) {
     return null;
   }
+  
+  const displayTotalCoins = totalCoinsMined + coinsEarnedThisSession;
 
   return (
     <motion.div
@@ -61,9 +63,6 @@ export default function CpuMiningDialog() {
             <h3 className="text-sm font-semibold text-foreground">{settings?.dialogTitle || 'CPU Mining'}</h3>
           </div>
           <div className="flex items-center">
-             <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={toggleMinimized} title="Minimize">
-               <Minimize2 className="h-4 w-4" />
-            </Button>
              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground" onClick={togglePinned} title={isPinned ? "Unpin" : "Pin"}>
                {isPinned ? <PinOff className="h-4 w-4 text-accent" /> : <Pin className="h-4 w-4" />}
             </Button>
@@ -84,8 +83,8 @@ export default function CpuMiningDialog() {
                 <p className="text-xs text-muted-foreground">Use your device's spare power to earn crypto coins.</p>
                 <Separator />
                 <div>
-                    <p className="text-sm text-yellow-400">{settings?.coinsEarnedLabel || 'Coins Earned'}</p>
-                    <p className="text-4xl font-bold text-yellow-300 font-mono tracking-tighter">{coinsEarned.toFixed(6)}</p>
+                    <p className="text-sm text-yellow-400">{settings?.coinsEarnedLabel || 'Total Coins Earned'}</p>
+                    <p className="text-4xl font-bold text-yellow-300 font-mono tracking-tighter">{displayTotalCoins.toFixed(6)}</p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     <StatDisplay label="Status" value={isMining ? "Running" : "Stopped"} valueClassName={isMining ? 'text-green-400' : 'text-red-400'}/>

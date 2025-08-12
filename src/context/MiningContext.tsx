@@ -7,7 +7,7 @@ import { useSettings } from './SettingsContext';
 import type { CpuMiningSettings } from '@/types';
 import { useAuth } from './AuthContext';
 import { database } from '@/lib/firebase/config';
-import { ref, update, get, set } from 'firebase/database';
+import { ref, update, get, set, serverTimestamp } from 'firebase/database';
 
 declare global {
     interface Window {
@@ -25,15 +25,14 @@ interface MiningContextType {
   isMinerOpen: boolean;
   isMining: boolean;
   stats: MiningStats;
-  coinsEarned: number;
+  coinsEarnedThisSession: number; // Renamed for clarity
+  totalCoinsMined: number; // New state for persistent total
   openMiner: () => void;
   closeMiner: () => void;
   startMining: () => void;
   stopMining: () => void;
   isPinned: boolean;
   togglePinned: () => void;
-  isMinimized: boolean;
-  toggleMinimized: () => void;
   position: { x: number; y: number };
   setPosition: (pos: { x: number; y: number }) => void;
   settings: CpuMiningSettings | null;
@@ -42,12 +41,10 @@ interface MiningContextType {
 const MiningContext = createContext<MiningContextType | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY_POSITION = 'coinimp-miner-position';
-const LOCAL_STORAGE_KEY_SESSION_HASHES = 'coinimp-session-hashes'; 
-const LOCAL_STORAGE_KEY_MINING_STATE = 'coinimp-mining-state'; 
 
 export const MiningProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { settings: globalSettings, isLoadingSettings } = useSettings();
   const miningSettings = globalSettings?.cpuMiningSettings || null;
   
@@ -55,17 +52,31 @@ export const MiningProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   const [isMinerOpen, setIsMinerOpen] = useState(false);
   const [position, setPositionState] = useState({ x: 300, y: 150 });
   const [isPinned, setIsPinned] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   
   // Mining State
   const [isMining, setIsMining] = useState(false);
   const [stats, setStats] = useState<MiningStats>({ hashesPerSecond: 0, totalHashes: 0, acceptedHashes: 0 });
-  const [coinsEarned, setCoinsEarned] = useState(0);
+  const [coinsEarnedThisSession, setCoinsEarnedThisSession] = useState(0);
+  const [totalCoinsMined, setTotalCoinsMined] = useState(0);
 
   // Refs for instances and intervals
   const minerInstanceRef = useRef<any>(null);
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const sessionHashesRef = useRef<number>(0);
+  const sessionStartHashesRef = useRef<number>(0);
+  const isStoppingRef = useRef(false);
+
+  // Load UI state from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedPos = localStorage.getItem(LOCAL_STORAGE_KEY_POSITION);
+      if (savedPos) setPositionState(JSON.parse(savedPos));
+    } catch (error) { console.error("Failed to load mining position from localStorage", error); }
+  }, []);
+  
+  // Update total coins from user profile
+  useEffect(() => {
+      setTotalCoinsMined(user?.cpuMiningEarnedCoins || 0);
+  }, [user]);
 
   const setPosition = (pos: { x: number, y: number }) => {
     setPositionState(pos);
@@ -74,61 +85,38 @@ export const MiningProvider: React.FC<{ children: ReactNode }> = ({ children }) 
 
   const togglePinned = () => setIsPinned(prev => !prev);
   
-  const toggleMinimized = () => {
-    setIsMinimized(prev => {
-        const nextMinimizedState = !prev;
-        if (nextMinimizedState) {
-            setIsMinerOpen(false);
-        }
-        return nextMinimizedState;
-    });
-  };
-  
-  // Load state from localStorage on mount
-  useEffect(() => {
-    try {
-      const savedPos = localStorage.getItem(LOCAL_STORAGE_KEY_POSITION);
-      if (savedPos) setPositionState(JSON.parse(savedPos));
-      
-      const savedSessionHashes = localStorage.getItem(LOCAL_STORAGE_KEY_SESSION_HASHES);
-      sessionHashesRef.current = savedSessionHashes ? parseInt(savedSessionHashes, 10) : 0;
-
-    } catch (error) {
-      console.error("Failed to load mining data from localStorage", error);
-    }
-  }, []);
-
-  const saveMinedCoinsToDb = useCallback(async (earnedCoins: number) => {
-    if (!user || !database || earnedCoins <= 0) return;
+  const saveMinedCoinsToDb = useCallback(async (earnedInSession: number) => {
+    if (!user || !database || earnedInSession <= 0) return;
+    isStoppingRef.current = true; // Flag to prevent multiple saves
     try {
         const userMiningRef = ref(database, `users/${user.id}/cpuMiningEarnedCoins`);
         const currentTotalSnap = await get(userMiningRef);
-        const newTotal = (currentTotalSnap.val() || 0) + earnedCoins;
+        const newTotal = (currentTotalSnap.val() || 0) + earnedInSession;
         await set(userMiningRef, newTotal);
+        setTotalCoinsMined(newTotal);
+        setCoinsEarnedThisSession(0); // Reset session earnings after saving
+        toast({ title: "Progress Saved", description: `${earnedInSession.toFixed(6)} coins saved to your total.`, className:"bg-green-500/20"});
     } catch (error) {
         console.error("Failed to save mined coins to DB:", error);
+    } finally {
+        isStoppingRef.current = false;
     }
-  }, [user]);
+  }, [user, toast]);
 
   const initializeMiner = useCallback(async () => {
     if (minerInstanceRef.current) return minerInstanceRef.current;
-    
     if (typeof window.Client === 'undefined') {
-        console.warn("CoinIMP Client not found on window. The script might not have loaded.");
         toast({ title: "Mining Error", description: "Mining script not loaded. Please refresh.", variant: "destructive" });
         return null;
     }
-    
     try {
-      const throttleValue = miningSettings?.throttle !== undefined ? miningSettings.throttle / 100 : 0.5;
+      const throttleValue = miningSettings?.throttle !== undefined ? miningSettings.throttle / 100 : 0.8;
       const miner = new window.Client.Anonymous('c541f766e3a569d2f01a1e9b0e96fd02e62d2cc7886f8c03a646befe8911df6a', {
-        throttle: throttleValue, 
-        c: 'w'
+        throttle: throttleValue, c: 'w'
       });
       minerInstanceRef.current = miner;
       return miner;
     } catch (error) {
-      console.error("Failed to initialize CoinIMP miner:", error);
       toast({ title: "Mining Error", description: "Could not initialize the miner.", variant: "destructive" });
       return null;
     }
@@ -136,50 +124,46 @@ export const MiningProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   
   const stopMining = useCallback(() => {
     const minerInstance = minerInstanceRef.current;
-    if (minerInstance && isMining) {
+    if (minerInstance && isMining && !isStoppingRef.current) {
         minerInstance.stop();
         setIsMining(false);
         if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
-        
-        const earnedCoins = coinsEarned;
-        if (earnedCoins > 0) {
-            saveMinedCoinsToDb(earnedCoins);
+        if (coinsEarnedThisSession > 0) {
+            saveMinedCoinsToDb(coinsEarnedThisSession);
         }
-        
-        sessionHashesRef.current = 0;
-        setCoinsEarned(0);
-        localStorage.removeItem(LOCAL_STORAGE_KEY_SESSION_HASHES);
-        localStorage.setItem(LOCAL_STORAGE_KEY_MINING_STATE, 'false');
     }
-  }, [isMining, coinsEarned, saveMinedCoinsToDb]);
+  }, [isMining, coinsEarnedThisSession, saveMinedCoinsToDb]);
 
   const startMining = useCallback(async () => {
+    if (isMining) return;
     const minerInstance = await initializeMiner();
-    if (!minerInstance || isMining) return;
+    if (!minerInstance) return;
     
     await minerInstance.start();
     setIsMining(true);
-    localStorage.setItem(LOCAL_STORAGE_KEY_MINING_STATE, 'true');
+    setCoinsEarnedThisSession(0); 
+
+    sessionStartHashesRef.current = minerInstance.getAcceptedHashes();
     
     if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
     statsIntervalRef.current = setInterval(() => {
-        const acceptedHashes = minerInstance.getAcceptedHashes();
-        const hashesThisSession = acceptedHashes - sessionHashesRef.current;
+        if (!minerInstanceRef.current) return;
+        const currentAcceptedHashes = minerInstanceRef.current.getAcceptedHashes();
+        const hashesThisSession = currentAcceptedHashes - sessionStartHashesRef.current;
         const coinsPerMillion = miningSettings?.coinsPer1MHashes || 0;
         const earned = (hashesThisSession / 1_000_000) * coinsPerMillion;
 
         setStats({
-            hashesPerSecond: minerInstance.getHashesPerSecond(),
-            totalHashes: acceptedHashes,
-            acceptedHashes: acceptedHashes,
+            hashesPerSecond: minerInstanceRef.current.getHashesPerSecond(),
+            totalHashes: currentAcceptedHashes,
+            acceptedHashes: currentAcceptedHashes,
         });
-        setCoinsEarned(earned);
+        setCoinsEarnedThisSession(earned);
     }, 1000);
     
   }, [initializeMiner, isMining, miningSettings]);
   
   const openMiner = useCallback(() => {
-    setIsMinimized(false);
     const dialogWidth = 320;
     const dialogHeight = 450; 
     const newX = (window.innerWidth - dialogWidth) / 2;
@@ -188,28 +172,28 @@ export const MiningProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     setIsMinerOpen(true);
   }, []);
 
-  const closeMiner = useCallback(() => {
-    setIsMinerOpen(false);
-  }, []);
+  const closeMiner = useCallback(() => setIsMinerOpen(false), []);
   
+  // Save progress on unload
   useEffect(() => {
-    if (!isLoadingSettings && miningSettings?.enabled) {
-      const wasMining = localStorage.getItem(LOCAL_STORAGE_KEY_MINING_STATE) === 'true';
-      if (wasMining) {
-          startMining();
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isMining && coinsEarnedThisSession > 0) {
+        saveMinedCoinsToDb(coinsEarnedThisSession);
       }
-    } else if (!isLoadingSettings && !miningSettings?.enabled && isMining) {
-        stopMining();
-    }
-  }, [startMining, stopMining, isLoadingSettings, miningSettings, isMining]);
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isMining, coinsEarnedThisSession, saveMinedCoinsToDb]);
   
   const contextValue = {
-    isMinerOpen, isMining, stats, coinsEarned,
+    isMinerOpen, isMining, stats, coinsEarnedThisSession, totalCoinsMined,
     openMiner, closeMiner, startMining, stopMining,
     isPinned, togglePinned, 
-    isMinimized, toggleMinimized,
     position, setPosition,
     settings: miningSettings,
+    // Deprecated minimize functionality, kept for type safety
+    isMinimized: !isMinerOpen,
+    toggleMinimized: closeMiner,
   };
   
   return (

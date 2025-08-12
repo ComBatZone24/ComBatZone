@@ -19,10 +19,17 @@ const GenerateSocialContentInputSchema = z.object({
 });
 export type GenerateSocialContentInput = z.infer<typeof GenerateSocialContentInputSchema>;
 
+const RankedItemSchema = z.object({
+    value: z.string().describe("The content itself (e.g., the title text, the keyword)."),
+    rank: z.number().int().describe("The rank of the item from 1 (best) to N."),
+    audienceReachPercentage: z.number().min(0).max(100).describe("The estimated potential audience reach for this item, as a percentage (0-100)."),
+});
+
 const GenerateSocialContentOutputSchema = z.object({
-  title: z.string().describe("A catchy, SEO-friendly title suitable for the platform. For Google, this should be an SEO Title Tag (under 60 characters)."),
-  description: z.string().describe("A detailed and engaging description for the post. For Google, this should be a Meta Description (under 160 characters)."),
-  tags: z.array(z.string()).describe("A list of 3-5 relevant and trending hashtags or keywords, without the '#' symbol. For Google, these are focus keywords."),
+  titles: z.array(RankedItemSchema).describe("A ranked list of 3-5 catchy, SEO-friendly title suggestions suitable for the platform. For Google, these should be SEO Title Tags (under 60 characters)."),
+  descriptions: z.array(RankedItemSchema).describe("A ranked list of 2-3 detailed and engaging description suggestions for the post. For Google, these should be Meta Descriptions (under 160 characters)."),
+  tags: z.array(RankedItemSchema).describe("A comprehensive, ranked list of 30-45 relevant and trending hashtags or keywords, without the '#' symbol. For Google, these are focus keywords."),
+  scripts: z.array(RankedItemSchema).describe("A ranked list of 2-3 short, conversational, and engaging social media post scripts in Roman Urdu/Hindi, complete with relevant emojis. These should be ready to copy and paste."),
   imagePrompt: z.string().describe("A creative, detailed prompt for an AI image generator to create a visually stunning and relevant image for the post. This should be universal enough for any AI image tool.")
 });
 export type GenerateSocialContentOutput = z.infer<typeof GenerateSocialContentOutputSchema>;
@@ -36,9 +43,10 @@ const prompt = ai.definePrompt({
   input: { schema: GenerateSocialContentInputSchema },
   output: { schema: GenerateSocialContentOutputSchema },
   prompt: `
-    You are an expert Social Media and SEO strategist for a gaming platform called "Arena Ace".
+    You are a world-class AI Trend Analyst and Predictive Content Strategist.
     Your task is to generate compelling content for a specific platform based on a given topic.
-    You must analyze the latest trends, news, and search data related to the topic to create content that is timely, engaging, and has a high potential for virality.
+    You must analyze the latest live and past trends, news, and search data related to the topic to create content that is timely, engaging, and has a high potential for virality.
+    Your response should be generic and not tied to any specific brand unless the topic itself is brand-specific.
 
     **Platform:** {{platform}}
     **Topic:** {{topic}}
@@ -46,17 +54,19 @@ const prompt = ai.definePrompt({
     **Your Task:**
     Generate content based on the platform specified. Adhere to the following rules:
 
-    1.  **Analyze Trends:** Consider what is currently trending today in the gaming community, especially in Pakistan. Think about recent game updates, popular memes, or news.
-    2.  **Predictive Content:** Based on current signals, suggest content that is likely to become popular.
-    3.  **Tags/Keywords:** Provide a list of 3-5 trending, relevant hashtags (without the '#') or SEO keywords.
-    4.  **Image Prompt:** Generate a DALL-E or Midjourney style prompt to create a stunning, high-quality image for the post. The prompt should be creative, descriptive, and evoke a professional gaming aesthetic. It should be related to the topic and universally usable.
+    1.  **Analyze Trends:** Consider what is currently trending. Think about recent game updates, popular memes, news, or cultural shifts related to the topic.
+    2.  **Predictive Content & Ranking:** Based on current signals, suggest content that is likely to become popular. For titles, descriptions, tags, and scripts you MUST provide a ranked list. The best item should have rank 1.
+    3.  **Audience Reach:** For each item in the ranked lists (titles, descriptions, tags, scripts), you MUST provide an estimated 'audienceReachPercentage'. This is your expert prediction of the potential audience reach for that specific item, from 0 to 100.
+    4.  **Extensive Tags/Keywords:** Provide a large, ranked list of **30 to 45** trending, relevant hashtags (without the '#') or SEO keywords.
+    5.  **Conversational Scripts:** Generate a ranked list of 2-3 short, conversational, and highly engaging social media post scripts in **Roman Urdu/Hindi**, complete with relevant emojis. These scripts should be in a casual, easy-to-read tone suitable for social media.
+    6.  **Image Prompt:** Generate a DALL-E or Midjourney style prompt to create a stunning, high-quality image for the post. The prompt should be creative, descriptive, and evoke a professional aesthetic. It should be related to the topic and universally usable.
 
     **Platform-Specific Customization:**
-    -   If the platform is **Google**, create an SEO-optimized Title Tag (under 60 characters) and a Meta Description (under 160 characters). Tags should be "Focus Keywords".
-    -   If the platform is **TikTok** or **Instagram**, create a very short, punchy title and use relevant emojis in the description.
-    -   If the platform is **Facebook** or **X (Twitter)**, create a slightly more descriptive but still engaging title and a concise description.
+    -   If the platform is **Google**, create SEO-optimized Title Tags (under 60 characters) and Meta Descriptions (under 160 characters). Tags should be "Focus Keywords". Scripts for Google should be more formal.
+    -   If the platform is **TikTok** or **Instagram**, create very short, punchy titles and use relevant emojis in the descriptions and scripts.
+    -   If the platform is **Facebook** or **X (Twitter)**, create slightly more descriptive but still engaging titles and concise descriptions. Scripts should be engaging and encourage discussion.
 
-    Generate the content now based on the Topic and Platform.
+    Generate the ranked and detailed content now based on the Topic and Platform.
   `,
 });
 
@@ -71,6 +81,12 @@ const generateSocialContentFlow = ai.defineFlow(
     if (!output) {
       throw new Error("AI failed to generate social media content.");
     }
+    // Ensure arrays are sorted by rank, as the model might not always do it perfectly.
+    output.titles.sort((a, b) => a.rank - b.rank);
+    output.descriptions.sort((a, b) => a.rank - b.rank);
+    output.tags.sort((a, b) => a.rank - b.rank);
+    output.scripts.sort((a, b) => a.rank - b.rank);
+    
     return output;
   }
 );

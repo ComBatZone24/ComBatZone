@@ -132,7 +132,7 @@ export const adminNavItems: NavItem[] = [
   },
   {
     title: 'AI Content Studio',
-    href: '/admin/ai-content-studio',
+    href: '/ai-content-studio',
     icon: Wand2,
     description: 'Generate SEO-optimized content for social media platforms using AI.',
     permissionKey: 'settings', // Re-use settings permission for simplicity
