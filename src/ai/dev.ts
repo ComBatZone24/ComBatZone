@@ -1,5 +1,11 @@
+
 import { config } from 'dotenv';
 config();
+
+// Must be imported before other flows to initialize `admin` instances.
+import { firebase } from '@genkit-ai/firebase';
+firebase();
+
 
 import '@/ai/flows/duel-flow.ts';
 import '@/ai/flows/spin-wheel-flow.ts';

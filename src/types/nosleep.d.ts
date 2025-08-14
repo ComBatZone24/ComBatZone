@@ -8,6 +8,7 @@ declare module 'nosleep.js' {
     disable(): void;
     _addSourceToVideo(element: HTMLVideoElement, type: 'webm' | 'mp4'): void;
     _preventLock(eventType: string): void;
+    readonly isEnabled: boolean;
   }
   export default NoSleep;
 }

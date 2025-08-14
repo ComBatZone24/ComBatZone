@@ -39,6 +39,7 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import PageTitle from '@/components/core/page-title';
 
 
 type UserStatusFilter = "all" | "active" | "inactive";
@@ -107,6 +108,7 @@ export default function AdminUsersPage() {
           tokenWallet: usersData[id].tokenWallet || 0,
           role: usersData[id].role || 'user',
           isActive: usersData[id].isActive !== undefined ? usersData[id].isActive : false,
+          isOnline: usersData[id].isOnline === true,
           lastLogin: usersData[id].lastLogin || new Date(0).toISOString(),
           onlineStreak: usersData[id].onlineStreak || 0,
           avatarUrl: usersData[id].avatarUrl,
@@ -336,12 +338,7 @@ export default function AdminUsersPage() {
         }}
       >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-foreground flex items-center">
-                <UserPlusIconLucide className="mr-3 h-8 w-8 text-accent" /> User Management
-              </h1>
-              <p className="text-muted-foreground">View, filter, and manage platform users.</p>
-            </div>
+            <PageTitle title="User Management" subtitle="View, filter, and manage platform users." />
           </div>
 
           <GlassCard className="p-0 flex flex-1 flex-col overflow-hidden">
@@ -416,10 +413,16 @@ export default function AdminUsersPage() {
                         <TableRow key={user.id} className="border-b-border/20 hover:bg-muted/20">
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <Avatar className="h-10 w-10 text-muted-foreground flex-shrink-0">
-                                <AvatarImage src={user.avatarUrl || undefined} alt={user.username} />
-                                <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
-                              </Avatar>
+                              <div className="relative">
+                                <Avatar className="h-10 w-10 text-muted-foreground flex-shrink-0">
+                                  <AvatarImage src={user.avatarUrl || undefined} alt={user.username} />
+                                  <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <span className={cn(
+                                  "absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-background",
+                                  user.isOnline ? "bg-green-500 animate-pulse" : "bg-gray-500"
+                                )}/>
+                              </div>
                               <div>
                                 <p className="font-medium text-foreground">{user.username}</p>
                                 <p className="text-xs text-muted-foreground">ID: {user.id.substring(0, 8)}...</p>
@@ -666,3 +669,5 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+    

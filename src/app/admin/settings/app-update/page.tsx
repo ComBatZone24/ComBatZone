@@ -20,6 +20,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { ArrowLeft, Loader2, Save, ArrowUpCircle, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
 
 const updateSettingsSchema = z.object({
   latestVersionCode: z.coerce.number().int().min(1, "Version code must be a positive integer."),
@@ -60,6 +62,8 @@ export default function AdminAppUpdatePage() {
       const snapshot = await get(settingsRef);
       if (snapshot.exists()) {
         form.reset({ ...defaultValues, ...snapshot.val()});
+      } else {
+        form.reset(defaultValues);
       }
     } catch (error) {
       console.error("Error fetching app update settings:", error);
@@ -105,76 +109,58 @@ export default function AdminAppUpdatePage() {
   }
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl md:text-4xl font-bold text-foreground flex items-center">
-          <ArrowUpCircle className="mr-3 h-8 w-8 text-accent" /> App Update Settings
-        </h1>
-        <Button variant="outline" asChild>
-          <Link href="/admin/settings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Settings</Link>
-        </Button>
-      </div>
-
-      <GlassCard>
-        <div className="space-y-6 p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Controller
-                    control={form.control} name="latestVersionName"
-                    render={({ field }) => (
-                    <div><Label htmlFor="versionName">Latest Version Name</Label><Input id="versionName" placeholder="e.g., 1.0.0" {...field} className="mt-1 bg-input/50" />
-                    {form.formState.errors.latestVersionName && <p className="text-destructive text-sm mt-1">{form.formState.errors.latestVersionName.message}</p>}</div>
-                    )}
-                />
-                 <Controller
-                    control={form.control} name="latestVersionCode"
-                    render={({ field }) => (
-                    <div><Label htmlFor="versionCode">Latest Version Code</Label><Input id="versionCode" type="number" placeholder="e.g., 9" {...field} className="mt-1 bg-input/50" />
-                    {form.formState.errors.latestVersionCode && <p className="text-destructive text-sm mt-1">{form.formState.errors.latestVersionCode.message}</p>}</div>
-                    )}
-                />
-            </div>
-          <Controller
-            control={form.control} name="apkUrl"
-            render={({ field }) => (
-              <div><Label htmlFor="apkUrl">APK Download URL (Google Drive)</Label><Input id="apkUrl" placeholder="https://drive.google.com/file/d/..." {...field} className="mt-1 bg-input/50" />
-              <p className="text-xs text-muted-foreground mt-1">Paste the public share link from Google Drive. It will be converted automatically.</p>
-              {form.formState.errors.apkUrl && <p className="text-destructive text-sm mt-1">{form.formState.errors.apkUrl.message}</p>}</div>
-            )}
-          />
-          <Controller
-            control={form.control} name="updateMessage"
-            render={({ field }) => (
-              <div><Label htmlFor="updateMessage">Update Message</Label><Textarea id="updateMessage" placeholder="Message to show users..." {...field} className="mt-1 bg-input/50" />
-              {form.formState.errors.updateMessage && <p className="text-destructive text-sm mt-1">{form.formState.errors.updateMessage.message}</p>}</div>
-            )}
-          />
-           <Controller
-            control={form.control} name="forceUpdate"
-            render={({ field }) => (
-                <div className="flex items-center justify-between rounded-lg border border-border/30 bg-background/30 p-4 shadow-sm">
-                    <div className="space-y-0.5"><Label htmlFor="forceUpdate" className="text-base font-medium text-foreground">Force Update</Label>
-                    <p className="text-xs text-muted-foreground">If enabled, users cannot dismiss the update dialog.</p></div>
-                    <Switch id="forceUpdate" checked={field.value} onCheckedChange={field.onChange} />
-                </div>
-            )}
-          />
+    <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <div className="flex items-center justify-between">
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground flex items-center">
+            <ArrowUpCircle className="mr-3 h-8 w-8 text-accent" /> App Update Settings
+            </h1>
+            <Button variant="outline" asChild>
+            <Link href="/admin/settings"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Settings</Link>
+            </Button>
         </div>
-      </GlassCard>
 
-      <Alert variant="default" className="bg-primary/10 border-primary/30">
-        <AlertCircle className="h-5 w-5 !text-primary" />
-        <AlertTitle className="!text-primary">Important</AlertTitle>
-        <AlertDescription className="!text-primary/80">
-          This system relies on the Median.co wrapper. The `versionCode` must match the one in your Android `build.gradle` file when you build the APK.
-        </AlertDescription>
-      </Alert>
+        <GlassCard>
+            <div className="space-y-6 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FormField control={form.control} name="latestVersionName" render={({ field }) => (
+                        <FormItem><FormLabel>Latest Version Name</FormLabel><FormControl><Input placeholder="e.g., 1.0.0" {...field} className="mt-1 bg-input/50" /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                    <FormField control={form.control} name="latestVersionCode" render={({ field }) => (
+                       <FormItem><FormLabel>Latest Version Code</FormLabel><FormControl><Input type="number" placeholder="e.g., 9" {...field} className="mt-1 bg-input/50" /></FormControl><FormMessage /></FormItem>
+                    )}/>
+                </div>
+            <FormField control={form.control} name="apkUrl" render={({ field }) => (
+                <FormItem><FormLabel>APK Download URL (Google Drive)</FormLabel><FormControl><Input placeholder="https://drive.google.com/file/d/..." {...field} className="mt-1 bg-input/50" /></FormControl><p className="text-xs text-muted-foreground mt-1">Paste the public share link from Google Drive. It will be converted automatically.</p><FormMessage /></FormItem>
+            )}/>
+            <FormField control={form.control} name="updateMessage" render={({ field }) => (
+                <FormItem><FormLabel>Update Message</FormLabel><FormControl><Textarea placeholder="Message to show users..." {...field} className="mt-1 bg-input/50" /></FormControl><FormMessage /></FormItem>
+            )}/>
+            <FormField control={form.control} name="forceUpdate" render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border border-border/30 bg-background/30 p-4 shadow-sm">
+                    <div className="space-y-0.5"><FormLabel className="text-base font-medium text-foreground">Force Update</FormLabel>
+                    <p className="text-xs text-muted-foreground">If enabled, users cannot dismiss the update dialog.</p></div>
+                    <FormControl><Switch id="forceUpdate" checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                </FormItem>
+            )}/>
+            </div>
+        </GlassCard>
 
-      <div className="flex justify-end pt-4">
-        <Button type="submit" disabled={isSaving} className="neon-accent-bg">
-          {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-5 w-5" />}
-          Save Update Settings
-        </Button>
-      </div>
-    </form>
+        <Alert variant="default" className="bg-primary/10 border-primary/30">
+            <AlertCircle className="h-5 w-5 !text-primary" />
+            <AlertTitle className="!text-primary">Important</AlertTitle>
+            <AlertDescription className="!text-primary/80">
+            This system relies on the Median.co wrapper. The `versionCode` must match the one in your Android `build.gradle` file when you build the APK.
+            </AlertDescription>
+        </Alert>
+
+        <div className="flex justify-end pt-4">
+            <Button type="submit" disabled={isSaving} className="neon-accent-bg">
+            {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-5 w-5" />}
+            Save Update Settings
+            </Button>
+        </div>
+        </form>
+    </Form>
   );
 }

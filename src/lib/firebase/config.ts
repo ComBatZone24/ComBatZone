@@ -15,6 +15,9 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// VAPID key for web push notifications
+export const vapidKey = "BN2svNho77WaPqKq4xGBYPDzEojYufwiq-1jw0WhX8_o-iYZ_s4kkJtqxlKiEHC3Mr6IL2iBc39RyaBxvSnL2Hk";
+
 let app: FirebaseApp;
 let database: Database | undefined;
 let auth: Auth | undefined;

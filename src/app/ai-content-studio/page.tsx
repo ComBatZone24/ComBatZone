@@ -330,9 +330,9 @@ export default function AiContentStudioPage() {
                             name="topic"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Topic / Keywords</FormLabel>
+                                    <FormLabel>Topic / Keywords / Region</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g., New Free Fire Tournament, Best Gaming Mouse" {...field} />
+                                        <Input placeholder="e.g., New Free Fire Tournament in UK, Best Gaming Mouse" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

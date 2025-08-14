@@ -23,6 +23,10 @@
         "referralCode": { ".read": "auth != null" },
         "isActive": { ".read": "auth != null" },
         "role": { ".read": "auth != null" },
+        "fcmTokens": {
+            ".read": "auth != null && auth.uid === $uid",
+            ".write": "auth != null && auth.uid === $uid"
+        },
 
         "location": { ".write": "auth.uid === $uid" },
         "isOnline": { ".write": "auth.uid === $uid" },

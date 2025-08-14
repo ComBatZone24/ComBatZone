@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { User as AppUserType, GlobalSettings } from '@/types';
-import { Edit3, Save, X, AlertTriangle, LogIn, CreditCard, Loader2, KeyRound, Copy, Share2, Link as LinkIcon, Facebook, Instagram, Youtube, MessageSquare, Mail, Gift, UserCircle, Globe, Shield, LogOut as LogOutIcon, Bell, UserRound, Lock, Link2 } from 'lucide-react';
+import { Edit3, Save, X, AlertTriangle, LogIn, CreditCard, Loader2, KeyRound, Copy, Share2, Link as LinkIcon, Facebook, Instagram, Youtube, MessageSquare, Mail, Gift, UserCircle, Globe, Shield, LogOut as LogOutIcon, Bell, UserRound, Lock, Link2, LayoutDashboard, ArrowUpCircle } from 'lucide-react';
 import RupeeIcon from '@/components/core/rupee-icon';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -20,6 +20,7 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useUpdate } from '@/context/UpdateContext'; // Import the update context hook
 
 
 const socialIconMap: Record<string, LucideIcon> = {
@@ -57,6 +58,9 @@ export default function ProfilePage() {
   const [isApplyingReferral, setIsApplyingReferral] = useState(false);
   const [friendReferralCodeInput, setFriendReferralCodeInput] = useState('');
   
+  const { isUpdateRequired, updateInfo } = useUpdate(); // Use the update context
+  const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+
 
   const fetchUserData = useCallback(async (user: FirebaseUser) => {
     setIsLoading(true);
@@ -286,6 +290,7 @@ export default function ProfilePage() {
   if (!appUser) return <div className="text-center py-20"><AlertTriangle className="mx-auto h-16 w-16 text-destructive mb-4" /><h1 className="text-2xl font-semibold mb-2">Profile Data Not Found</h1><p className="mb-6">We couldn't retrieve your profile details. Please try again or contact support.</p><Button variant="outline" asChild><Link href="/">Go Home</Link></Button></div>;
 
   const displayUser = isEditing ? formData : appUser;
+  const isPrivilegedUser = appUser.role === 'admin' || appUser.role === 'delegate';
 
   return (
     <div className="space-y-8 pt-8">
@@ -309,6 +314,40 @@ export default function ProfilePage() {
             )}
         </div>
       </GlassCard>
+
+      {isPrivilegedUser && (
+          <GlassCard className="p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                      <LayoutDashboard className="h-8 w-8 text-accent"/>
+                      <div>
+                          <h3 className="text-lg font-semibold text-foreground">Admin Access</h3>
+                          <p className="text-sm text-muted-foreground">You have administrative privileges.</p>
+                      </div>
+                  </div>
+                  <Button asChild className="w-full sm:w-auto neon-accent-bg">
+                      <Link href="/admin/dashboard">Go to Admin Panel</Link>
+                  </Button>
+              </div>
+          </GlassCard>
+      )}
+
+      {isUpdateRequired && updateInfo && (
+         <GlassCard className="p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                      <ArrowUpCircle className="h-8 w-8 text-accent"/>
+                      <div>
+                          <h3 className="text-lg font-semibold text-foreground">App Update Available</h3>
+                          <p className="text-sm text-muted-foreground">Version {updateInfo.latestVersionName} is now available.</p>
+                      </div>
+                  </div>
+                  <Button onClick={() => setIsUpdateDialogOpen(true)} className="w-full sm:w-auto">
+                    Update Now
+                  </Button>
+              </div>
+          </GlassCard>
+      )}
 
       <Tabs defaultValue="account" className="w-full">
         <TabsList className="grid w-full grid-cols-3">

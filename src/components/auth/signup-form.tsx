@@ -14,7 +14,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { User as UserIcon, Mail, Smartphone, KeyRound, Eye, EyeOff, Loader2, Gift, ChevronsRight, FileSignature, AlertCircle } from 'lucide-react';
+import { User as UserIcon, Mail, Smartphone, KeyRound, Eye, EyeOff, Loader2, Gift, ChevronsRight, FileSignature, AlertCircle, Bell } from 'lucide-react';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem, SelectSeparator } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { countryCodes } from "@/lib/country-codes";
@@ -37,6 +37,7 @@ const signupSchema = z.object({
   confirmPassword: z.string(),
   referralCode: z.string().optional(),
   agreement: z.boolean().refine(val => val === true, { message: "You must agree to the terms." }),
+  notificationAgreement: z.boolean().refine(val => val === true, { message: "You must agree to receive notifications." }),
   signature: z.string().min(3, "Please sign with your full name."),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -80,6 +81,7 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
       confirmPassword: "",
       referralCode: initialReferralCode || "",
       agreement: false,
+      notificationAgreement: false,
       signature: "",
     },
   });
@@ -104,6 +106,21 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
   };
 
   const prevStep = () => setStep(prev => prev - 1);
+  
+  const handleRequestNotificationPermission = async () => {
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          toast({ title: 'Notifications Enabled!', description: 'You will now receive updates about tournaments and rewards.' });
+        } else if (permission === 'denied') {
+          toast({ title: 'Notifications Blocked', description: 'You can enable notifications later from your browser settings.', variant: 'destructive' });
+        }
+      } catch (error) {
+        console.error('Error requesting notification permission:', error);
+      }
+    }
+  };
 
   async function onSubmit(data: SignupFormValues) {
     if (step !== 4) return;
@@ -251,11 +268,24 @@ export function SignupForm({ initialReferralCode }: { initialReferralCode?: stri
         return (
             <motion.div key={4} initial={{ x: 300, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -300, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }} className="space-y-6">
             <h2 className="text-xl font-semibold text-center text-foreground">Final Agreement</h2>
-            <div className="h-32 p-3 border rounded-md bg-background/50 text-xs text-muted-foreground overflow-y-auto">
+            <div className="h-24 p-3 border rounded-md bg-background/50 text-xs text-muted-foreground overflow-y-auto">
                 <p>By creating an account, you agree to our Terms of Service and Privacy Policy. You agree that you are responsible for any actions taken with your account. You understand that wallet transactions are final and refunds for digital goods or entry fees are not guaranteed. We reserve the right to suspend or terminate accounts for any violation of our rules, including cheating, harassment, or fraudulent activity. All decisions made by the administration are final.</p>
             </div>
              <FormField control={form.control} name="agreement" render={({ field }) => (
                 <FormItem className="flex items-center space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} id="agreement" /></FormControl><Label htmlFor="agreement" className="text-sm font-normal text-muted-foreground cursor-pointer">I have read and agree to the terms.</Label><FormMessage />
+                </FormItem>
+             )}/>
+              <FormField control={form.control} name="notificationAgreement" render={({ field }) => (
+                <FormItem className="flex items-start space-x-2"><FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => {
+                    field.onChange(checked);
+                    if (checked) {
+                        handleRequestNotificationPermission();
+                    }
+                }} id="notificationAgreement" /></FormControl>
+                  <div className="grid gap-1.5 leading-none">
+                    <Label htmlFor="notificationAgreement" className="text-sm font-normal text-muted-foreground cursor-pointer flex items-center gap-1.5"><Bell className="h-4 w-4 text-accent"/> I agree to receive notifications about tournaments and rewards.</Label>
+                    <FormMessage />
+                  </div>
                 </FormItem>
              )}/>
              <FormField name="signature" control={form.control} render={({ field }) => (

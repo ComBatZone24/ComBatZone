@@ -28,6 +28,7 @@ export interface User {
   delegatePermissions?: {
     accessScreens: Record<string, boolean>;
   };
+  fcmTokens?: Record<string, boolean>; // New: For storing FCM device tokens
   location?: {
     ip: string;
     country_name?: string;

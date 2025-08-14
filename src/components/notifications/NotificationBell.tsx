@@ -99,23 +99,6 @@ export default function NotificationBell({ className, isFloating = false }: Noti
     });
   }, [adminMessages, userNotifications]);
 
-  const getNotificationHeader = (message: any) => {
-    if (message.source === 'global') {
-      return { icon: Users, text: 'Broadcast' };
-    }
-    
-    switch (message.type) {
-      case 'order_shipped':
-        return { icon: Truck, text: 'Order Shipped' };
-      case 'order_cancelled':
-        return { icon: XCircle, text: 'Order Cancelled' };
-      case 'admin_message':
-        return { icon: MessagesSquare, text: 'Admin Message' };
-      default:
-        return { icon: UserCircle, text: 'Notification' };
-    }
-  };
-
   return (
     <Dialog open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
       <DialogTrigger asChild>
@@ -142,7 +125,6 @@ export default function NotificationBell({ className, isFloating = false }: Noti
           ) : (
             combinedMessages.map(message => {
               const isUnread = message.source === 'global' ? !message.readBy?.[appUser?.id || ""] : !message.read;
-              const { icon: Icon, text: title } = getNotificationHeader(message);
               return (
                 <div
                   key={message.id}
@@ -150,13 +132,13 @@ export default function NotificationBell({ className, isFloating = false }: Noti
                 >
                   <div className="relative">
                     <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-                        <Icon className="h-4 w-4 text-primary" />
+                        <UserCircle className="h-5 w-5 text-primary" />
                     </div>
                     {isUnread && <span className="absolute top-0 right-0 block h-2 w-2 rounded-full bg-blue-500 ring-2 ring-muted" />}
                   </div>
                   <div className="flex-1">
                     <div className="flex justify-between items-center">
-                        <p className="text-xs font-semibold text-foreground">{title}</p>
+                        <p className="text-xs font-semibold text-foreground">Admin</p>
                         <p className="text-xs text-muted-foreground">{message.timestamp ? formatDistanceToNow(new Date(message.timestamp), { addSuffix: true }) : ''}</p>
                     </div>
                     <p className="text-sm text-muted-foreground whitespace-pre-wrap">{message.text}</p>

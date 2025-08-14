@@ -2,11 +2,12 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useMemo, type ReactNode, useCallback } from 'react';
-import { ref, onValue, get, onDisconnect, set, serverTimestamp, off } from 'firebase/database';
+import { ref, onValue, get, onDisconnect, set, serverTimestamp, off, update } from 'firebase/database';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { auth, database } from '@/lib/firebase/config'; // Your Firebase config
+import { auth, database, vapidKey } from '@/lib/firebase/config'; // Import vapidKey from config
 import type { User as AppUserType } from '@/types'; // Your custom user type
 import { useRouter } from 'next/navigation';
+import { getMessaging, getToken } from 'firebase/messaging';
 
 // 1. DEFINING THE CONTEXT TYPE
 interface AuthContextType {
@@ -40,6 +41,40 @@ const buildFallbackUser = (fbUser: FirebaseUser): AppUserType => ({
   totalReferralCommissionsEarned: 0,
   watchAndEarnPoints: 0,
 });
+
+// Helper function to manage FCM token
+const getFCMToken = async (userId: string): Promise<void> => {
+  if (typeof window === 'undefined' || !('Notification' in window) || !database) {
+    return;
+  }
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      console.log('Notification permission not granted.');
+      return;
+    }
+
+    const messaging = getMessaging();
+    
+    if (!vapidKey) {
+      console.error("VAPID key is not configured in firebase/config.ts.");
+      return;
+    }
+
+    const currentToken = await getToken(messaging, { serviceWorkerRegistration: await navigator.serviceWorker.ready, vapidKey });
+    if (currentToken) {
+      console.log('FCM Token:', currentToken);
+      const tokenRef = ref(database, `users/${userId}/fcmTokens/${currentToken}`);
+      await set(tokenRef, true); // Store the token
+    } else {
+      console.log('No registration token available. Request permission to generate one.');
+    }
+  } catch (error) {
+    console.error('An error occurred while retrieving FCM token. ', error);
+  }
+};
+
 
 // 3. THE AUTHENTICATION PROVIDER COMPONENT
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -87,6 +122,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setLoading(false); // CRITICAL: Set loading to false when user logs out
         return;
       }
+      
+      // Request FCM token after user login
+      getFCMToken(fbUser.uid);
       
       if (!database) {
         console.error("AuthContext: Firebase Database is not initialized. Cannot set up user listeners.");

@@ -145,8 +145,8 @@ export default function ClickAndEarnComponent({ user, settings }: ClickAndEarnCo
                 }
                 const newClickCount = (currentTaskData.clickCount || 0) + 1;
                 
-                // Set new batch cooldown if a 10-click milestone is hit
-                if (newClickCount % 10 === 0 && newClickCount < dailyClickTarget) {
+                // Set new batch cooldown if a 20-click milestone is hit
+                if (newClickCount % 20 === 0 && newClickCount < dailyClickTarget) {
                     const randomMinutes = Math.floor(Math.random() * (40 - 30 + 1)) + 30;
                     currentTaskData.batchCooldownUntil = Date.now() + randomMinutes * 60 * 1000;
                 }

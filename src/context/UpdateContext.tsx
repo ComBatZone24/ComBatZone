@@ -39,7 +39,8 @@ export const UpdateProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         if (snapshot.exists()) {
           const settings: AppUpdateSettings = snapshot.val();
           setUpdateInfo(settings);
-          if (settings.latestVersionCode > currentVersionCode) {
+          // The main logic: show the dialog if an update is available AND forceUpdate is true.
+          if (settings.forceUpdate && settings.latestVersionCode > currentVersionCode) {
             setIsUpdateRequired(true);
           } else {
             setIsUpdateRequired(false);
